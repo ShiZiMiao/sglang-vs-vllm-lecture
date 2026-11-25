@@ -1,0 +1,91 @@
+site_name: LLM 推理系统：SGLang 与 vLLM 对比讲义
+site_description: 面向人工智能专业学生的 LLM 推理系统课程讲义，从 PagedAttention 到 RadixAttention，从原理到压测与选型。
+site_author: LLM Inference Course
+site_url: https://shizimiao.github.io/sglang-vs-vllm-lecture/
+repo_url: https://github.com/ShiZiMiao/sglang-vs-vllm-lecture
+repo_name: ShiZiMiao/sglang-vs-vllm-lecture
+edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: site
+use_directory_urls: true
+
+theme:
+  name: material
+  language: zh
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.highlight
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: 切换到深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: 切换到浅色模式
+
+nav:
+  - 课程首页: index.md
+  - 开始之前:
+      - 第 0 章 预备知识：从“文字接龙”到 GPU 服务: 00-prerequisites.md
+  - 第一部分 基础:
+      - 第 1 章 从一次文本生成到推理服务: 01-foundations.md
+      - 第 2 章 推理引擎的通用架构: 02-engine-architecture.md
+  - 第二部分 两个引擎:
+      - 第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎: 03-vllm.md
+      - 第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈: 04-sglang.md
+  - 第三部分 对比与实践:
+      - 第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知: 05-mechanism-comparison.md
+      - 第 6 章 功能、模型与生态对比: 06-features-ecosystem.md
+      - 第 7 章 性能评测：如何科学地比较 vLLM 与 SGLang: 07-benchmarking.md
+      - 第 8 章 动手实践：启动、调用、压测与调参: 08-hands-on.md
+  - 第四部分 深入与选型:
+      - 第 9 章 源码地图：一次请求在两个引擎中的调用链: 09-source-code-tour.md
+      - 第 10 章 选型、演进与前沿: 10-selection-and-future.md
+  - 附录:
+      - 附录 A 术语表: appendix-a-glossary.md
+      - 附录 B 习题参考答案与实验评分标准: appendix-b-exercises.md
+      - 附录 C 参考资料: appendix-c-references.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - sane_lists
+  - md_in_html
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.arithmatex:
+      generic: true
+      smart_dollar: true
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+copyright: © 2026 ShiZiMiao · 文档 CC BY 4.0 · 代码 MIT · 版本与性能结论请以官方文档和自测为准

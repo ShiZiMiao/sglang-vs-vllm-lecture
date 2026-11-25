@@ -1,0 +1,9 @@
+site/
+.venv/
+.venv-docs/
+.mkdocs-venv/
+__pycache__/
+*.pyc
+tmp_src/
+.DS_Store
+Thumbs.db
