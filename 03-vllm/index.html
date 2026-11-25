@@ -1,0 +1,3020 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="面向人工智能专业学生的 LLM 推理系统课程讲义，从 PagedAttention 到 RadixAttention，从原理到压测与选型。">
+      
+      
+        <meta name="author" content="LLM Inference Course">
+      
+      
+        <link rel="canonical" href="https://shizimiao.github.io/sglang-vs-vllm-lecture/03-vllm/">
+      
+      
+        <link rel="prev" href="../02-engine-architecture/">
+      
+      
+        <link rel="next" href="../04-sglang/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎 - LLM 推理系统：SGLang 与 vLLM 对比讲义</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#3-vllm-pagedattention" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="LLM 推理系统：SGLang 与 vLLM 对比讲义" class="md-header__button md-logo" aria-label="LLM 推理系统：SGLang 与 vLLM 对比讲义" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            LLM 推理系统：SGLang 与 vLLM 对比讲义
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到深色模式"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="切换到深色模式" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到浅色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换到浅色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ShiZiMiao/sglang-vs-vllm-lecture" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ShiZiMiao/sglang-vs-vllm-lecture
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="LLM 推理系统：SGLang 与 vLLM 对比讲义" class="md-nav__button md-logo" aria-label="LLM 推理系统：SGLang 与 vLLM 对比讲义" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    LLM 推理系统：SGLang 与 vLLM 对比讲义
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ShiZiMiao/sglang-vs-vllm-lecture" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ShiZiMiao/sglang-vs-vllm-lecture
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    课程首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开始之前
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    开始之前
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 0 章 预备知识：从“文字接龙”到 GPU 服务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第一部分 基础
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第一部分 基础
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-foundations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 1 章 从一次文本生成到推理服务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-engine-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 2 章 推理引擎的通用架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第二部分 两个引擎
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第二部分 两个引擎
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#30-pagedattention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.0 先用储物柜类比理解 PagedAttention
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 定位与历史
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#32" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 设计总览
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#33-pagedattention-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 PagedAttention：把 KV Cache 变成“虚拟内存”
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.3 PagedAttention：把 KV Cache 变成“虚拟内存”">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#331" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3.1 块与块表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#332" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3.2 显存浪费分析
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#333-copy-on-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3.3 共享与 Copy-on-Write
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#334" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3.4 块大小的权衡
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#34-kv-cache-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 KV Cache Manager：块池、哈希与驱逐
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.4 KV Cache Manager：块池、哈希与驱逐">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#341" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4.1 数据结构
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#342" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4.2 分配路径
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#343" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4.3 前缀缓存的哈希
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#344" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4.4 一次前缀命中的过程
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#35-token-budget-chunked-prefill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 调度器：Token Budget 与 Chunked Prefill
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.5 调度器：Token Budget 与 Chunked Prefill">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#351" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5.1 核心约束
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#352" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5.2 调度顺序（概念版）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#353-chunked-prefill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5.3 Chunked Prefill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#354-recompute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5.4 抢占：Recompute
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#355" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5.5 调度策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#36-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 V1 引擎架构
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.6 V1 引擎架构">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#361" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6.1 进程模型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#362" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6.2 一次请求的调用链
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#363" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6.3 异步与重叠
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#37-attention-backendcuda-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7 执行层：Attention Backend、CUDA Graph 与编译
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.7 执行层：Attention Backend、CUDA Graph 与编译">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#371-attention-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7.1 Attention Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#372-cuda-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7.2 CUDA Graph
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#373" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7.3 采样
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#38" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8 高级能力
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.8 高级能力">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#381-speculative-decoding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.1 投机解码（Speculative Decoding）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#382-lora" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.2 LoRA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#383" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.3 多模态
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#384" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.4 量化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#385" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.5 并行与分布式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#386" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.6 其他
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#39" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.9 源码导读（概念版）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#310" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.10 优势与局限
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.10 优势与局限">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优势
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        局限
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#311" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.11 常见误区
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#312" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.12 本章小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-sglang/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第三部分 对比与实践
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第三部分 对比与实践
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-mechanism-comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-features-ecosystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 6 章 功能、模型与生态对比
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-benchmarking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 7 章 性能评测：如何科学地比较 vLLM 与 SGLang
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-hands-on/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 8 章 动手实践：启动、调用、压测与调参
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第四部分 深入与选型
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第四部分 深入与选型
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-source-code-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 9 章 源码地图：一次请求在两个引擎中的调用链
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../10-selection-and-future/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 10 章 选型、演进与前沿
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    附录
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-a-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 A 术语表
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-b-exercises/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 B 习题参考答案与实验评分标准
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-c-references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 C 参考资料
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#30-pagedattention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.0 先用储物柜类比理解 PagedAttention
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 定位与历史
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#32" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 设计总览
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#33-pagedattention-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 PagedAttention：把 KV Cache 变成“虚拟内存”
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.3 PagedAttention：把 KV Cache 变成“虚拟内存”">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#331" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3.1 块与块表
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#332" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3.2 显存浪费分析
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#333-copy-on-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3.3 共享与 Copy-on-Write
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#334" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3.4 块大小的权衡
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#34-kv-cache-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 KV Cache Manager：块池、哈希与驱逐
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.4 KV Cache Manager：块池、哈希与驱逐">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#341" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4.1 数据结构
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#342" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4.2 分配路径
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#343" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4.3 前缀缓存的哈希
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#344" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4.4 一次前缀命中的过程
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#35-token-budget-chunked-prefill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 调度器：Token Budget 与 Chunked Prefill
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.5 调度器：Token Budget 与 Chunked Prefill">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#351" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5.1 核心约束
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#352" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5.2 调度顺序（概念版）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#353-chunked-prefill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5.3 Chunked Prefill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#354-recompute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5.4 抢占：Recompute
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#355" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5.5 调度策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#36-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 V1 引擎架构
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.6 V1 引擎架构">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#361" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6.1 进程模型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#362" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6.2 一次请求的调用链
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#363" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6.3 异步与重叠
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#37-attention-backendcuda-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7 执行层：Attention Backend、CUDA Graph 与编译
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.7 执行层：Attention Backend、CUDA Graph 与编译">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#371-attention-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7.1 Attention Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#372-cuda-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7.2 CUDA Graph
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#373" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7.3 采样
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#38" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8 高级能力
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.8 高级能力">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#381-speculative-decoding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.1 投机解码（Speculative Decoding）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#382-lora" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.2 LoRA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#383" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.3 多模态
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#384" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.4 量化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#385" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.5 并行与分布式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#386" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8.6 其他
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#39" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.9 源码导读（概念版）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#310" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.10 优势与局限
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.10 优势与局限">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优势
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        局限
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#311" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.11 常见误区
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#312" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.12 本章小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="3-vllm-pagedattention">第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎<a class="headerlink" href="#3-vllm-pagedattention" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>本章目标</strong>：理解 vLLM 的核心数据结构（块表）、前缀缓存（块哈希）、调度器（token budget + chunked prefill）以及 V1 引擎的进程架构。读完后，你应该能画出一次请求在 vLLM 内部的完整路径。</p>
+<p><strong>先修知识</strong>：<a href="../01-foundations/">第 1 章</a> 的 KV Cache 公式、<a href="../02-engine-architecture/">第 2 章</a> 的分页思想。如果忘了“块表”，本章 3.0 节会用储物柜类比重新讲。</p>
+<p><strong>一句话概括</strong>：vLLM 把 KV Cache 切成固定大小的块，用一张“块表”把逻辑位置翻译成物理位置，从而实现按需分配、共享和前缀复用。</p>
+<p><strong>给零基础同学</strong>：本章的关键不是背参数，而是理解“块表”和“块哈希”两个数据结构。看到 <code>block_table</code>、<code>slot_mapping</code> 时，回到 3.0 节的储物柜类比。</p>
+<p><strong>版本与来源</strong>：本章的默认值与源码路径按 <strong>vLLM 0.34.0</strong> 核对（2026-11-25）；参数逐项说明见 <a href="https://docs.vllm.ai/en/v0.34.0/configuration/engine_args.html">vLLM Engine Arguments</a>。</p>
+</blockquote>
+<hr />
+<h2 id="30-pagedattention">3.0 先用储物柜类比理解 PagedAttention<a class="headerlink" href="#30-pagedattention" title="Permanent link">&para;</a></h2>
+<p>假设你经营一个储物柜仓库：</p>
+<ul>
+<li>每个储物柜有 16 个小格子（block_size = 16）；</li>
+<li>客人来了，不一定能拿到连号的柜子，可能拿到 7 号、3 号、9 号；</li>
+<li>你给每位客人一张<strong>取物卡</strong>，上面写着“第 0 段去 7 号柜、第 1 段去 3 号柜……”；</li>
+<li>这张卡就是 <strong>block table（块表）</strong>；</li>
+<li>柜子不需要连号，所以不会有“明明总空格够、却找不到连续 3 个柜子”的问题；</li>
+<li>两个客人如果前几段东西完全一样，可以暂时共用柜子；谁要往里写新东西，再复制一份，这就是 <strong>copy-on-write</strong>。</li>
+</ul>
+<p>PagedAttention 做的就是这件事：</p>
+<table>
+<thead>
+<tr>
+<th>储物柜</th>
+<th>vLLM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>柜子</td>
+<td>物理块（physical block）</td>
+</tr>
+<tr>
+<td>16 个小格子</td>
+<td>block_size = 16 个 token 的 KV</td>
+</tr>
+<tr>
+<td>取物卡</td>
+<td>块表（block table）</td>
+</tr>
+<tr>
+<td>客人的逻辑第几段</td>
+<td>逻辑块号（logical block）</td>
+</tr>
+<tr>
+<td>两客人共用柜子</td>
+<td>块共享 + 引用计数</td>
+</tr>
+<tr>
+<td>写入时复制</td>
+<td>copy-on-write</td>
+</tr>
+<tr>
+<td>柜子回收</td>
+<td>引用计数归零后回到空闲队列</td>
+</tr>
+</tbody>
+</table>
+<p>有了这个类比，后面的“块表寻址”“前缀缓存”“COW”就不难了。</p>
+<hr />
+<h2 id="31">3.1 定位与历史<a class="headerlink" href="#31" title="Permanent link">&para;</a></h2>
+<p>vLLM 诞生于 2023 年，由 UC Berkeley 的 Sky Computing Lab 发起，核心论文是 SOSP 2023 的 <em>Efficient Memory Management for Large Language Model Serving with PagedAttention</em>。</p>
+<p>它要解决的核心问题是：</p>
+<blockquote>
+<p>论文作者观察到：现有 LLM 服务系统把 KV Cache 存在连续显存里，为了应对未知的输出长度，往往要预留最大长度，在他们测试的负载上造成 60%～80% 的显存浪费；同时变长请求让批处理效率很低。</p>
+</blockquote>
+<p>vLLM 的答案是把操作系统虚拟内存的分页机制搬到 KV Cache 上：</p>
+<ul>
+<li>KV 切成固定大小的 <strong>block</strong>；</li>
+<li>每条序列维护 <strong>block table</strong>，逻辑块号映射到物理块号；</li>
+<li>按需分配，块可以不连续；</li>
+<li>支持块级共享与 copy-on-write；</li>
+<li>注意力 kernel 通过块表寻址。</li>
+</ul>
+<p>论文（SOSP 2023）报告，在 NVIDIA A100、OPT/LLaMA 系列模型的实验中，相对 FasterTransformer/Orca 有 2～4 倍吞吐提升（具体模型、长度与并发见论文第 6 节）；这是特定实验条件下的结果，不是跨版本的性能承诺。更重要的是，它把“PagedAttention + continuous batching”变成了开源社区的事实标准，后续几乎所有推理引擎都借鉴了这套思路。</p>
+<p>今天的 vLLM 已经不只是“一个注意力优化”，而是一个覆盖文本、多模态、embedding、reward、分类模型，支持多种硬件、量化、并行与分离式部署的通用推理平台。2025 年起，<strong>V1 引擎</strong>逐步成为默认架构（vLLM 0.8 起默认启用），重构了调度、KV 管理和多进程模型。</p>
+<hr />
+<h2 id="32">3.2 设计总览<a class="headerlink" href="#32" title="Permanent link">&para;</a></h2>
+<p>先看一张简化的全局图（图 3-1）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌──────────────────────────────────────────────────────────────┐
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│                    API Server Process                        │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│  FastAPI / OpenAI 协议 / 鉴权 / 限流 / tokenize / detokenize  │
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>└───────────────────────────┬──────────────────────────────────┘
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                            │ ZMQ（请求、输出、控制）
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>┌───────────────────────────▼──────────────────────────────────┐
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│                    EngineCore Process                        │
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│  ┌─────────────┐   ┌──────────────────┐   ┌───────────────┐  │
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>│  │ Scheduler   │──▶│ KVCacheManager   │   │ OutputProcessor│  │
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>│  │ 组批/抢占    │   │ 块池/前缀缓存     │   │ 停止/流式      │  │
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>│  └──────┬──────┘   └──────────────────┘   └───────────────┘  │
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>└─────────┼────────────────────────────────────────────────────┘
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>          │ 调度结果（SchedulerOutput）
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>┌─────────▼────────────────────────────────────────────────────┐
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>│                    GPU Worker Processes                      │
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>│  ┌────────────────┐  ┌────────────────┐  ┌───────────────┐   │
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>│  │ ModelRunner    │  │ Attention      │  │ Sampler       │   │
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│  │ 构造输入/执行   │  │ Backend        │  │ 采样/约束      │   │
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>│  └────────────────┘  └────────────────┘  └───────────────┘   │
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>│  每张 GPU 一个 Worker；TP/PP/EP 由 Executor 组织              │
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>└──────────────────────────────────────────────────────────────┘
+</code></pre></div>
+<p><em>图 3-1　vLLM V1 的进程架构</em></p>
+<p>几个关键点：</p>
+<ul>
+<li><strong>前后端分离</strong>：API Server 负责协议与文本处理，EngineCore 负责调度与 KV 管理，GPU Worker 负责模型执行。</li>
+<li><strong>ZMQ 通信</strong>：请求、调度输出、采样结果通过进程间消息传递。ZMQ 是一个消息队列库，可以把它想成“进程之间的快递员”；这带来隔离性与可扩展性，也带来 IPC（进程间通信）开销。</li>
+<li><strong>DP Coordinator</strong>：当数据并行度 &gt;1 时，额外的协调进程负责在多个 DP rank 之间分配请求、协调 MoE 的同步前向。</li>
+<li><strong>异步调度</strong>：V1 的调度与执行可以流水化，减少 CPU 侧等待。</li>
+</ul>
+<hr />
+<h2 id="33-pagedattention-kv-cache">3.3 PagedAttention：把 KV Cache 变成“虚拟内存”<a class="headerlink" href="#33-pagedattention-kv-cache" title="Permanent link">&para;</a></h2>
+<h3 id="331">3.3.1 块与块表<a class="headerlink" href="#331" title="Permanent link">&para;</a></h3>
+<p>设 <code>block_size = 16</code>（本章教学示例，便于与论文和旧资料对照）。vLLM 0.34.0 的默认值已是 64，历史版本长期为 16；实际以启动日志或 <code>--block-size</code> 为准。一条序列的第 <span class="arithmatex">\(i\)</span> 个 token 属于逻辑块：</p>
+<div class="arithmatex">\[
+\text{logical\_block} = \left\lfloor \frac{i}{16} \right\rfloor
+\]</div>
+<p>先解释这个公式：</p>
+<ul>
+<li><span class="arithmatex">\(\lfloor \cdot \rfloor\)</span> 是<strong>向下取整</strong>，例如 <span class="arithmatex">\(\lfloor 2.7 \rfloor = 2\)</span>、<span class="arithmatex">\(\lfloor 3.0 \rfloor = 3\)</span>；</li>
+<li>这里 token 位置 <span class="arithmatex">\(i\)</span> 从 0 开始数（vLLM 内部用 0-based 索引）；</li>
+<li>每 16 个 token 算一块：</li>
+<li><span class="arithmatex">\(i=0 \sim 15\)</span> → <span class="arithmatex">\(\lfloor i/16 \rfloor = 0\)</span>，属于逻辑块 0；</li>
+<li><span class="arithmatex">\(i=16 \sim 31\)</span> → <span class="arithmatex">\(\lfloor i/16 \rfloor = 1\)</span>，属于逻辑块 1；</li>
+<li><span class="arithmatex">\(i=32 \sim 47\)</span> → 逻辑块 2；</li>
+<li>依此类推。</li>
+</ul>
+<p>如果 <code>block_size</code> 不是 16，把公式里的 16 换成 <code>block_size</code> 即可：</p>
+<div class="arithmatex">\[
+\text{logical\_block} = \left\lfloor \frac{i}{\text{block\_size}} \right\rfloor
+\]</div>
+<p>所以“逻辑块号”回答的是：<strong>这个 token 在序列的第几个块里</strong>；“块表”再回答：<strong>这个逻辑块实际放在显存的哪个物理块里</strong>。</p>
+<p>序列维护一张块表（图 3-2）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>逻辑块:   0      1      2      3
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>         ┌────┐ ┌────┐ ┌────┐ ┌────┐
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>块表:    │ 7  │ │ 3  │ │ 9  │ │ 12 │
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>         └────┘ └────┘ └────┘ └────┘
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>           │      │      │      │
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>物理块池:  7      3      9      12
+</code></pre></div>
+<p><em>图 3-2　逻辑块到物理块的块表映射</em></p>
+<p>物理块可以任意排列，甚至被多条序列共享。注意力 kernel 在计算第 <span class="arithmatex">\(t\)</span> 个 query 时：</p>
+<ol>
+<li>计算它属于哪个逻辑块；</li>
+<li>通过块表找到物理块；</li>
+<li>从物理块中读取对应的 K/V tile；</li>
+<li>对所有历史块做 attention。</li>
+</ol>
+<p><strong>手把手例子（为了好算，假设 block_size = 4，见图 3-3）</strong>：</p>
+<p>一条序列已经生成了 10 个 token。逻辑上它需要 3 个块：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>token 位置:  0  1  2  3 | 4  5  6  7 | 8  9
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>逻辑块:      [   块 0   ] [   块 1   ] [块 2]
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>             4 个 token    4 个 token   2 个 token（还有 2 个空位）
+</code></pre></div>
+<p><em>图 3-3　block_size=4 时的块内布局</em></p>
+<p>块表把它映射到物理块 7、3、9：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>逻辑块 0 → 物理块 7：存 token 0～3 的 K/V
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>逻辑块 1 → 物理块 3：存 token 4～7 的 K/V
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>逻辑块 2 → 物理块 9：存 token 8～9 的 K/V（9 号块还有 2 个空位）
+</code></pre></div>
+<p>如果下一步生成第 11 个 token（位置 10），它属于逻辑块 2，直接写入物理块 9 的空位；再生成第 12 个 token（位置 11）时，块 2 的 4 个槽位刚好填满；生成第 13 个 token（位置 12）时就要分配一个新物理块（比如 12 号），块表变成 <code>[7, 3, 9, 12]</code>。</p>
+<p><strong>共享与 COW 的例子</strong>（图 3-4）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>序列 A 的块表: [7, 3, 9]
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>序列 B 的块表: [7, 3, 9]     ← A、B 的前 3 个块完全共享
+</code></pre></div>
+<p><em>图 3-4　共享块与 copy-on-write</em></p>
+<p>现在 B 要往逻辑块 2 写入新 token，但物理块 9 还被 A 引用：</p>
+<ol>
+<li>分配一个新物理块 15；</li>
+<li>把 9 号块的内容复制到 15 号块；</li>
+<li>B 的块表改成 <code>[7, 3, 15]</code>；</li>
+<li>9 号块的引用计数减 1（只剩 A 用）；</li>
+<li>B 往 15 号块写新 token，不影响 A。</li>
+</ol>
+<p>这就是“写时复制”：<strong>只有真正要写的时候才复制，读的时候可以放心共享。</strong></p>
+<p>伪代码：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">paged_attention</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">block_table</span><span class="p">,</span> <span class="n">kv_cache</span><span class="p">,</span> <span class="n">block_size</span><span class="p">):</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">output</span> <span class="o">=</span> <span class="mi">0</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="k">for</span> <span class="n">logical_block</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_blocks_for_query</span><span class="p">):</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        <span class="n">physical_block</span> <span class="o">=</span> <span class="n">block_table</span><span class="p">[</span><span class="n">logical_block</span><span class="p">]</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="n">k</span> <span class="o">=</span> <span class="n">kv_cache</span><span class="o">.</span><span class="n">k</span><span class="p">[</span><span class="n">physical_block</span><span class="p">]</span>   <span class="c1"># [block_size, num_kv_heads, head_dim]</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="n">v</span> <span class="o">=</span> <span class="n">kv_cache</span><span class="o">.</span><span class="n">v</span><span class="p">[</span><span class="n">physical_block</span><span class="p">]</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="n">output</span> <span class="o">+=</span> <span class="n">attention</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="k">return</span> <span class="n">output</span>
+</code></pre></div>
+<p>真实 kernel 会做 tile 化、在线 softmax、向量化加载，但逻辑就是这样。</p>
+<p><strong>别把 <code>block_table</code> 和 <code>slot_mapping</code> 混为一谈</strong>：</p>
+<ul>
+<li><code>block_table</code> 是“长期地图”：每条序列一张，记录逻辑块 → 物理块，decode 每一步都要用它读取历史 KV；</li>
+<li><code>slot_mapping</code> 是“本步施工单”：只包含本步新写入的 token，记录每个新 token 的 KV 应该写到哪个物理槽位（通常是 <code>物理块号 × block_size + 块内偏移</code>）。</li>
+</ul>
+<p>用上面的例子：序列块表是 <code>[7, 3, 9]</code>，本步要写入位置 10 的 token；它落在逻辑块 2、块内偏移 2，所以 <code>slot_mapping = 9 × 4 + 2 = 38</code>。<strong>读历史靠 block_table，写新 KV 靠 slot_mapping</strong>。第 9 章还会再看到这个例子。</p>
+<h3 id="332">3.3.2 显存浪费分析<a class="headerlink" href="#332" title="Permanent link">&para;</a></h3>
+<p>两种方案的浪费对比如表 3-1 所示。</p>
+<p><em>表 3-1　连续分配与 PagedAttention 的显存浪费对比</em></p>
+<table>
+<thead>
+<tr>
+<th>浪费类型</th>
+<th>连续分配</th>
+<th>PagedAttention</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>外部碎片</td>
+<td>严重（释放后留下空洞）</td>
+<td>几乎没有（块大小固定）</td>
+</tr>
+<tr>
+<td>内部碎片</td>
+<td>取决于预留策略，可能很大</td>
+<td>每条序列最后一块最多浪费 15 个 token</td>
+</tr>
+<tr>
+<td>预留浪费</td>
+<td>按 max_tokens 预留</td>
+<td>按实际增长分配</td>
+</tr>
+<tr>
+<td>共享</td>
+<td>困难</td>
+<td>块级共享 + COW</td>
+</tr>
+</tbody>
+</table>
+<p>论文（SOSP 2023，A100 等实验环境）的核心数据是：PagedAttention 把 KV 浪费从 60%～80% 降到 4% 以下。这个数字依赖具体负载与块大小，但方向是明确的。</p>
+<p><strong>为什么能降到 4% 以下？</strong> 因为分页之后，浪费主要只剩“每条序列最后一个块没装满”。块大小 16 时，最坏浪费 15 个 token，浪费比例大致是：</p>
+<div class="arithmatex">\[
+\frac{15}{\text{平均上下文长度}}
+\]</div>
+<table>
+<thead>
+<tr>
+<th>平均上下文长度</th>
+<th>最坏内部碎片比例</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>32 token</td>
+<td>约 47%</td>
+<td>短序列反而浪费严重</td>
+</tr>
+<tr>
+<td>128 token</td>
+<td>约 12%</td>
+<td>仍然不可忽视</td>
+</tr>
+<tr>
+<td>512 token</td>
+<td>约 2.9%</td>
+<td>接近论文量级</td>
+</tr>
+<tr>
+<td>4096 token</td>
+<td>约 0.37%</td>
+<td>可以忽略</td>
+</tr>
+</tbody>
+</table>
+<p>所以“&lt;4%”不是魔法，而是<strong>长上下文负载 + 16 token 块</strong>下的结果。如果你的业务全是几十个 token 的短请求，块内碎片比例会更高；这时可以考虑更小的块，或者接受这部分开销。反过来，块太小会增加块表与 kernel 寻址开销，所以仍是折中。把块大小换成 0.34.0 默认的 64，趋势不变：长上下文的碎片比例更低，但几十 token 的短请求最坏会浪费大半个块，短请求场景反而更不友好。</p>
+<h3 id="333-copy-on-write">3.3.3 共享与 Copy-on-Write<a class="headerlink" href="#333-copy-on-write" title="Permanent link">&para;</a></h3>
+<p>PagedAttention 天然支持“同一前缀，多条序列”：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>序列 A 块表: [7, 3, 9]
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>序列 B 块表: [7, 3, 9]   ← 前三个块共享，引用计数为 2
+</code></pre></div>
+<p>当 B 要继续生成 token 时，分三种情况：</p>
+<ul>
+<li>块 9 还有空位，且只有 B 在用 → 直接写进块 9 的空位；</li>
+<li>块 9 还有空位，但 A、B 共享 → 分配新块 15，把块 9 的已有内容复制过去，B 的块表改为 <code>[7, 3, 15]</code>，再往 15 的空位写；</li>
+<li>块 9 已满 → <strong>不需要复制块 9</strong>：直接分配新块 15，B 的块表变为 <code>[7, 3, 9, 15]</code>，新 token 写入 15。</li>
+</ul>
+<p>只有“共享块里还有空位、某条序列要往这个空位追加”时才需要复制；块已经满了就只是开新块，不涉及复制。</p>
+<p>这就是 <strong>copy-on-write（COW）</strong>，与进程 fork 后的内存语义一致。它支撑了：</p>
+<ul>
+<li><code>n &gt; 1</code> 的并行采样（同一 prompt 生成多个回答）；</li>
+<li>beam search（多个候选共享前缀）；</li>
+<li>前缀缓存命中（多个请求共享相同 system prompt 的块）。</li>
+</ul>
+<h3 id="334">3.3.4 块大小的权衡<a class="headerlink" href="#334" title="Permanent link">&para;</a></h3>
+<p>块大小的取舍如表 3-2 所示。</p>
+<p><em>表 3-2　块大小的权衡</em></p>
+<table>
+<thead>
+<tr>
+<th>block_size</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>小（如 8/16）</td>
+<td>内部碎片小，前缀匹配粒度细</td>
+<td>块表长，元数据多，kernel 寻址频繁</td>
+</tr>
+<tr>
+<td>大（如 32/64）</td>
+<td>元数据少，kernel 效率高</td>
+<td>内部碎片大，前缀复用粒度粗</td>
+</tr>
+</tbody>
+</table>
+<p>vLLM 长期默认 16，从 0.34.0 起默认 64；两者都是工程折中。块大小通常不是首要调参项，但在前缀复用极度敏感的场景值得关注：0.34 还引入了 <code>prefix_match_unit</code>，允许前缀命中的粒度细于物理块。</p>
+<hr />
+<h2 id="34-kv-cache-manager">3.4 KV Cache Manager：块池、哈希与驱逐<a class="headerlink" href="#34-kv-cache-manager" title="Permanent link">&para;</a></h2>
+<h3 id="341">3.4.1 数据结构<a class="headerlink" href="#341" title="Permanent link">&para;</a></h3>
+<p>vLLM 的 KV 管理器（V1 中为 <code>KVCacheManager</code>）大致维护：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>KVCacheManager
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>├── block_pool: list[KVCacheBlock]
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>│   └── KVCacheBlock { block_id, ref_cnt, block_hash, prev_free, next_free }
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>├── free_block_queue: 双向链表（LRU 顺序）
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>├── cached_block_hash_to_block: dict[hash → block]
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>└── req_to_blocks: dict[request_id → list[block]]
+</code></pre></div>
+<p>初始化时，根据 <code>gpu_memory_utilization</code> 与模型/激活开销算出可用显存，除以单块大小，得到块总数。</p>
+<h3 id="342">3.4.2 分配路径<a class="headerlink" href="#342" title="Permanent link">&para;</a></h3>
+<p>调度器为新请求或 decode 追加 token 时，调用类似 <code>allocate_slots()</code> 的逻辑：</p>
+<ol>
+<li>计算需要的新块数；</li>
+<li>从空闲队列头部取块（头部是最久未使用的，适合驱逐）；</li>
+<li>如果空闲块不足，驱逐带缓存哈希的块（从哈希表移除）；</li>
+<li>如果仍不足，触发抢占；</li>
+<li>更新块表与引用计数。</li>
+</ol>
+<h3 id="343">3.4.3 前缀缓存的哈希<a class="headerlink" href="#343" title="Permanent link">&para;</a></h3>
+<p>先不用看公式，先理解“哈希”是什么：</p>
+<blockquote>
+<p>哈希（hash）就像给一段数据算一个“指纹”。同样的数据得到同样的指纹；不同的数据通常得到不同的指纹。指纹很短，方便快速比较。</p>
+</blockquote>
+<p>vLLM 的前缀缓存默认开启（0.34.0 中 <code>CacheConfig.enable_prefix_caching</code> 为 <code>True</code>；模型/后端不支持时引擎会自动关闭并提示）。开启后，每个完整块都会参与下面的哈希。</p>
+<p>vLLM 要给每个“完整块”算指纹，才能判断两个请求的块是不是一样、能不能复用。但只算本块内容还不够，因为：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>请求 A: [系统提示][问题 X]
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>请求 B: [系统提示][问题 Y]
+</code></pre></div>
+<p>如果只看“问题 X”和“问题 Y”所在的块，可能误以为它们相同；实际上前缀不同，不能复用。所以哈希必须把<strong>父块的指纹</strong>也带上（图 3-5）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>块 0 指纹 = hash(块 0 的内容)
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>块 1 指纹 = hash(块 0 指纹, 块 1 的内容)
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>块 2 指纹 = hash(块 1 指纹, 块 2 的内容)
+</code></pre></div>
+<p><em>图 3-5　块哈希沿父块链式累积</em></p>
+<p>这样，只有“从开头到本块为止，所有 token 都完全相同”，指纹才会相同。公式就是：</p>
+<div class="arithmatex">\[
+h_{\text{block}} = \text{hash}\left(h_{\text{parent}},\; \text{tuple}(\text{block tokens}),\; \text{extra hashes}\right)
+\]</div>
+<ul>
+<li><span class="arithmatex">\(h_{\text{parent}}\)</span>：前一个块的哈希，保证“只有前缀完全相同，块哈希才相同”；</li>
+<li><code>block tokens</code>：本块的 token ID 元组；</li>
+<li><code>extra hashes</code>：LoRA ID、多模态输入哈希、<code>cache_salt</code> 等。</li>
+</ul>
+<p>几个重要细节：</p>
+<ul>
+<li><strong>只缓存完整块</strong>：最后一个没填满的块不进入前缀缓存，因为它的内容还会继续增长，指纹不稳定（示例中块大小为 16，0.34.0 默认为 64）；</li>
+<li><strong>默认哈希算法</strong>：<code>sha256</code> over pickle，也有 <code>sha256_cbor</code>、<code>xxhash</code>、<code>xxhash_cbor</code> 等更快/更稳定的选项；</li>
+<li><strong><code>cache_salt</code></strong>：注入第一个块的哈希，用于租户隔离，防止通过缓存命中时间侧信道推断他人内容；</li>
+<li><strong>LRU 驱逐</strong>：空闲队列头部是最久未使用的块；被命中时从队列中摘下（引用计数 +1），不再可驱逐；释放后按相反顺序放回尾部（后面的块更不可能被复用）。</li>
+</ul>
+<blockquote>
+<p><strong>LRU 的冰箱类比</strong>：把空闲块想成冰箱里的食材。最久没被用到的放在最外面，空间不够时先扔它；刚被拿去做菜的，先放到里面，不会马上被扔。LRU = Least Recently Used，最近最少使用。</p>
+</blockquote>
+<h3 id="344">3.4.4 一次前缀命中的过程<a class="headerlink" href="#344" title="Permanent link">&para;</a></h3>
+<p>请求的 prompt 有 2000 个 token，前 1984 个 token（124 个完整块）与缓存中的某个前缀相同：</p>
+<ol>
+<li>调度器调用 <code>get_computed_blocks()</code>，逐块计算哈希；</li>
+<li>在 <code>cached_block_hash_to_block</code> 中查找；</li>
+<li>命中的块引用计数 +1，从空闲队列移除；</li>
+<li>返回“已计算 token 数”= 1984；</li>
+<li>只需为剩余 16 个 token 做 prefill（以及后续 decode）；</li>
+<li>新生成的完整块在写入后注册哈希，供后续请求复用。</li>
+</ol>
+<p>注意：vLLM V1 的块表是 append-only 的，某些情况下同一哈希可能暂时对应多个块，直到请求结束才清理。这是实现细节，不影响“块级前缀缓存”的核心语义。</p>
+<hr />
+<h2 id="35-token-budget-chunked-prefill">3.5 调度器：Token Budget 与 Chunked Prefill<a class="headerlink" href="#35-token-budget-chunked-prefill" title="Permanent link">&para;</a></h2>
+<h3 id="351">3.5.1 核心约束<a class="headerlink" href="#351" title="Permanent link">&para;</a></h3>
+<p>vLLM 调度器每步受两个主要约束：</p>
+<ul>
+<li><code>max_num_batched_tokens</code>：本步所有序列处理的 token 总数上限（0.34.0 字段默认 2048）；</li>
+<li><code>max_num_seqs</code>：本步同时运行的序列数上限（0.34.0 字段默认 128）。</li>
+</ul>
+<p>前者决定“计算量/激活峰值”，后者决定“并发宽度”。两者共同影响吞吐与延迟。注意默认值只是字段值，真实服务的有效并发还会被显存与 KV 池限制。</p>
+<h3 id="352">3.5.2 调度顺序（概念版）<a class="headerlink" href="#352" title="Permanent link">&para;</a></h3>
+<p>V1 的调度循环可以简化为：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">schedule</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">scheduled</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">budget</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_num_batched_tokens</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="c1"># 1. 先处理 running 队列：decode 或继续 chunked prefill</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="k">for</span> <span class="n">req</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">running</span><span class="p">:</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>        <span class="k">if</span> <span class="n">budget</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>            <span class="k">break</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>        <span class="n">n</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">req</span><span class="o">.</span><span class="n">is_decode</span> <span class="k">else</span> <span class="nb">min</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">remaining_prefill</span><span class="p">,</span> <span class="n">chunk_size</span><span class="p">,</span> <span class="n">budget</span><span class="p">)</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">kv_manager</span><span class="o">.</span><span class="n">can_append</span><span class="p">(</span><span class="n">req</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>            <span class="n">scheduled</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">req</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>            <span class="n">budget</span> <span class="o">-=</span> <span class="n">n</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">preempt</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>   <span class="c1"># 显存不足，踢回 waiting</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>    <span class="c1"># 2. 再处理 waiting 队列：准入新的 prefill</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>    <span class="k">for</span> <span class="n">req</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">waiting</span><span class="p">:</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>        <span class="k">if</span> <span class="n">budget</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>            <span class="k">break</span>
+<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>        <span class="n">n</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">num_prompt_tokens</span><span class="p">,</span> <span class="n">budget</span><span class="p">,</span> <span class="n">chunk_size</span><span class="p">)</span>
+<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>        <span class="n">blocks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kv_manager</span><span class="o">.</span><span class="n">allocate</span><span class="p">(</span><span class="n">req</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>        <span class="k">if</span> <span class="n">blocks</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a>            <span class="k">break</span>
+<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>        <span class="n">scheduled</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">req</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
+<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a>        <span class="n">budget</span> <span class="o">-=</span> <span class="n">n</span>
+<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a>
+<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>    <span class="k">return</span> <span class="n">SchedulerOutput</span><span class="p">(</span><span class="n">scheduled</span><span class="p">,</span> <span class="n">budget_used</span><span class="o">=...</span><span class="p">)</span>
+</code></pre></div>
+<p>真实实现要复杂得多，但决策顺序基本是：<strong>running 优先，waiting 补充，token budget 兜底，显存不足则抢占</strong>。</p>
+<blockquote>
+<p>伪代码里的 <code>chunk_size</code> 是示意变量；真实 vLLM 由 <code>max_num_batched_tokens</code> 与内部 chunking 配置共同决定每次 prefill 处理多少 token，并没有一个同名开关需要你去设置。</p>
+</blockquote>
+<h3 id="353-chunked-prefill">3.5.3 Chunked Prefill<a class="headerlink" href="#353-chunked-prefill" title="Permanent link">&para;</a></h3>
+<p>当一个 prompt 很长（例如 32K token），而 <code>max_num_batched_tokens</code> 只有 8K 时，vLLM 会把它切成多个 chunk（图 3-6）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>Step 1: A[0:8192]    + B decode + C decode
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Step 2: A[8192:16384] + B decode + C decode
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>Step 3: A[16384:24576]+ B decode + C decode
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>Step 4: A[24576:32768]+ B decode + C decode + D prefill
+</code></pre></div>
+<p><em>图 3-6　chunked prefill 的分步执行</em></p>
+<p>这样做的收益：</p>
+<ul>
+<li>单步激活峰值受控，不会因为一个超长 prompt OOM；</li>
+<li>decode 请求不会被一个长 prefill 阻塞太久，ITL 更平稳；</li>
+<li>prefill 的计算密集与 decode 的带宽密集可以在同一 batch 内互补，提高 GPU 利用率。</li>
+</ul>
+<p>代价：</p>
+<ul>
+<li>A 的 TTFT 变长（要分四步）；</li>
+<li>调度器需要跟踪每条序列“prefill 到哪了”，并在 chunk 之间保持 KV 一致；</li>
+<li>chunk 大小需要调参：太小 → 调度开销大、TTFT 长；太大 → ITL 抖动、激活峰值高。</li>
+</ul>
+<h3 id="354-recompute">3.5.4 抢占：Recompute<a class="headerlink" href="#354-recompute" title="Permanent link">&para;</a></h3>
+<p>当 KV 池不足时，vLLM V1 主要采用 <strong>recompute</strong>：</p>
+<ol>
+<li>选中要抢占的序列（V1 通常从 running 队列尾部选择，即优先级最低或最晚被调度的序列）；</li>
+<li>释放它的 KV 块；</li>
+<li>把它放回 waiting 队列，标记“需要重新 prefill”；</li>
+<li>之后重新调度时，从 prompt 开头重新计算（包括已经生成的部分）。</li>
+</ol>
+<p>代价是浪费算力，但实现简单，且不需要 CPU↔GPU 的 KV swap。对于“短请求多、长请求少”的负载，recompute 通常可以接受；对于超长上下文，频繁抢占会很痛。</p>
+<h3 id="355">3.5.5 调度策略<a class="headerlink" href="#355" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>FCFS</strong>：默认，按到达顺序；</li>
+<li><strong>Priority</strong>：按请求优先级；适合多租户、在线/离线混跑；</li>
+<li>未来/版本相关的策略可能还包括更细的配额与公平性机制。</li>
+</ul>
+<p>vLLM 没有内置“按前缀匹配长度重排 waiting 队列”的策略；前缀缓存仍然生效（块级哈希），但调度顺序本身不主动追求缓存命中率。SGLang 提供 LPM 等<strong>可选</strong>的缓存感知策略（注意：SGLang 当前默认同样是 FCFS，需要显式开启），这是第 5 章要重点对比的能力差异。</p>
+<hr />
+<h2 id="36-v1">3.6 V1 引擎架构<a class="headerlink" href="#36-v1" title="Permanent link">&para;</a></h2>
+<h3 id="361">3.6.1 进程模型<a class="headerlink" href="#361" title="Permanent link">&para;</a></h3>
+<p>V1 把引擎拆成四类进程：</p>
+<table>
+<thead>
+<tr>
+<th>进程</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>API Server Process</strong></td>
+<td>HTTP/OpenAI 协议、tokenize、多模态预处理、detokenize、流式响应</td>
+</tr>
+<tr>
+<td><strong>EngineCore Process</strong></td>
+<td>调度器、KV 管理器、请求生命周期</td>
+</tr>
+<tr>
+<td><strong>GPU Worker Process</strong></td>
+<td>每张 GPU 一个，加载权重、执行 forward、采样</td>
+</tr>
+<tr>
+<td><strong>DP Coordinator Process</strong></td>
+<td>DP&gt;1 时协调请求分配与 MoE 同步前向</td>
+</tr>
+</tbody>
+</table>
+<p>进程间通过 ZMQ 传递消息。这样做的好处：</p>
+<ul>
+<li>前端崩溃不影响引擎核心；</li>
+<li>前端可以独立扩缩容；</li>
+<li>调度与执行解耦，便于异步流水；</li>
+<li>多 DP rank 时可以独立扩展。</li>
+</ul>
+<p>代价是 IPC 序列化/反序列化开销，尤其是高 QPS 小请求场景。V1 通过批量消息、异步发送、减少拷贝等方式缓解。</p>
+<h3 id="362">3.6.2 一次请求的调用链<a class="headerlink" href="#362" title="Permanent link">&para;</a></h3>
+<p>调用链如图 3-7 所示：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>HTTP POST /v1/chat/completions
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>  → api_server.py：解析 OpenAI 请求
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>  → Processor：套 chat template、tokenize、多模态预处理
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>  → AsyncLLMEngine.add_request()
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>  → ZMQ 发送到 EngineCore
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>  → Scheduler.schedule()：分配 KV、组批
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>  → Executor.execute_model(SchedulerOutput)
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>  → GPU Worker：ModelRunner.execute_model()
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>      → 构造 input_ids/positions/slot_mapping/block_tables
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>      → Model.forward()
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>      → Attention Backend
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>      → Sampler
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>  → EngineCoreOutput → ZMQ 回传
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>  → OutputProcessor：停止判断、detokenize
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>  → SSE 流式返回
+</code></pre></div>
+<p><em>图 3-7　vLLM 一次请求的调用链</em></p>
+<h3 id="363">3.6.3 异步与重叠<a class="headerlink" href="#363" title="Permanent link">&para;</a></h3>
+<p>V1 的调度器是异步的：API Server 可以持续接收新请求，EngineCore 在每个 step 开始时把新请求纳入 waiting 队列；输出也可以在前一步 GPU 计算尚未完全结束时就开始处理。</p>
+<p>不过，vLLM 的“CPU/GPU 重叠”程度与具体版本、后端有关。SGLang 把“零开销批调度”作为核心卖点之一，第 4 章会详细讲。</p>
+<hr />
+<h2 id="37-attention-backendcuda-graph">3.7 执行层：Attention Backend、CUDA Graph 与编译<a class="headerlink" href="#37-attention-backendcuda-graph" title="Permanent link">&para;</a></h2>
+<h3 id="371-attention-backend">3.7.1 Attention Backend<a class="headerlink" href="#371-attention-backend" title="Permanent link">&para;</a></h3>
+<p>vLLM 支持多种注意力后端，按模型、硬件、dtype、功能选择：</p>
+<table>
+<thead>
+<tr>
+<th>后端</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FlashAttention</strong>（FA2/FA3）</td>
+<td>成熟、通用，支持变长与 causal；Hopper 上 FA3 更快</td>
+</tr>
+<tr>
+<td><strong>FlashInfer</strong></td>
+<td>高性能分页注意力 kernel，支持多种 mask/量化；与 SGLang 同源社区</td>
+</tr>
+<tr>
+<td><strong>Triton</strong></td>
+<td>可移植、易改，性能通常略逊于专用 kernel</td>
+</tr>
+<tr>
+<td><strong>FlexAttention</strong></td>
+<td>用 PyTorch 组合表达注意力变体，灵活</td>
+</tr>
+<tr>
+<td><strong>MLA 专用</strong></td>
+<td>FlashMLA / CUTLASS MLA，针对 DeepSeek 类压缩 KV</td>
+</tr>
+<tr>
+<td><strong>Mamba/线性注意力</strong></td>
+<td>混合架构模型</td>
+</tr>
+</tbody>
+</table>
+<p>选择逻辑通常考虑：</p>
+<ul>
+<li>是否支持 paged KV；</li>
+<li>是否支持 sliding window / ALiBi / 自定义 mask；</li>
+<li>是否支持 FP8 KV；</li>
+<li>head_dim、GQA 比例、是否 MLA；</li>
+<li>当前 GPU 架构（Ampere/Hopper/Blackwell）。</li>
+</ul>
+<p>可以用 <code>--attention-backend</code> 强制指定，但大多数时候让引擎自动选择更好。</p>
+<h3 id="372-cuda-graph">3.7.2 CUDA Graph<a class="headerlink" href="#372-cuda-graph" title="Permanent link">&para;</a></h3>
+<p>Decode 每步要启动几十到上百个 kernel。每个 kernel launch 都有 CPU 开销（几微秒），在 batch 小、模型小时，CPU 可能成为瓶颈。<strong>CUDA Graph</strong> 把一串 kernel 调用捕获成图，之后一次 launch 重放，大幅降低 CPU 开销。</p>
+<p>vLLM 的做法：</p>
+<ul>
+<li>为一批固定的 batch size 捕获 decode 图（常见序列为 1, 2, 4, 8, …；旧 runner 默认把捕获上限压在 512，数据中心 Blackwell 可到 1024）；</li>
+<li>实际 batch 不匹配时，padding 到最近的捕获尺寸；</li>
+<li>图捕获需要固定显存地址，因此 KV 池与输入缓冲区要预分配；</li>
+<li><code>--enforce-eager</code> 可关闭 CUDA Graph，便于调试，但会损失性能。</li>
+</ul>
+<blockquote>
+<p><strong>版本提醒</strong>：0.34.0 的代码中已经包含 Model Runner V2；在 V2 下，捕获形状改为按 token 数管理，<code>max_cudagraph_capture_size</code> 属于旧 runner 的参数（已标记为 deprecated）。如果你在日志里看到 token 级捕获配置，不是配置写错了，而是走的新 runner。</p>
+</blockquote>
+<p>V1 还使用 <strong>piecewise CUDA Graph / torch.compile</strong>：把模型切成若干段，在注意力等动态形状处断开，其余部分编译/捕获。这样既能享受图执行的低开销，又能处理变长输入。</p>
+<h3 id="373">3.7.3 采样<a class="headerlink" href="#373" title="Permanent link">&para;</a></h3>
+<p>采样在 GPU 上完成：</p>
+<ul>
+<li>logits → 温度/top-k/top-p/penalty → 采样；</li>
+<li>约束解码时，用 FSM 生成 token mask，把非法 token 的 logit 置为 <span class="arithmatex">\(-\infty\)</span>；</li>
+<li>只把选中的 token ID 传回 CPU，避免传输整个词表。</li>
+</ul>
+<p>vLLM 支持多种 guided decoding 后端（当前以 xgrammar、guidance 为主，outlines 视版本），通过 <code>guided_json</code>、<code>guided_regex</code>、<code>guided_choice</code> 或 OpenAI 的 <code>response_format</code> 使用。</p>
+<hr />
+<h2 id="38">3.8 高级能力<a class="headerlink" href="#38" title="Permanent link">&para;</a></h2>
+<h3 id="381-speculative-decoding">3.8.1 投机解码（Speculative Decoding）<a class="headerlink" href="#381-speculative-decoding" title="Permanent link">&para;</a></h3>
+<p>用一个小的 draft 模型（或 n-gram、EAGLE 头、MTP 头）先猜 <span class="arithmatex">\(k\)</span> 个 token，再用目标模型一次前向验证。若猜对，一次前向产出多个 token；若猜错，按拒绝采样修正，保证输出分布不变。</p>
+<p>vLLM 支持多种方法：</p>
+<ul>
+<li>draft model；</li>
+<li>n-gram（从 prompt/上下文中匹配候选）；</li>
+<li>EAGLE / EAGLE-3；</li>
+<li>MTP（DeepSeek 的多 token 预测头）。</li>
+</ul>
+<p>收益取决于<strong>接受率</strong>：草稿越准、任务越可预测（如代码补全、格式化输出），加速越明显；开放式创作可能几乎不赚。</p>
+<h3 id="382-lora">3.8.2 LoRA<a class="headerlink" href="#382-lora" title="Permanent link">&para;</a></h3>
+<p>多租户场景下，为每个用户挂一个 LoRA adapter，共享基座模型。vLLM 支持：</p>
+<ul>
+<li><code>--enable-lora</code>；</li>
+<li><code>--max-loras</code>（同时激活的 adapter 数）；</li>
+<li><code>--max-lora-rank</code>；</li>
+<li>动态加载/卸载 adapter。</li>
+</ul>
+<p>底层需要 batched LoRA kernel：同一个 batch 里不同序列使用不同 adapter，GEMM 要按 adapter 分组。</p>
+<h3 id="383">3.8.3 多模态<a class="headerlink" href="#383" title="Permanent link">&para;</a></h3>
+<p>vLLM 支持图像、视频、音频输入，流程通常是：</p>
+<ol>
+<li>输入 processor 把图像切成 patch；</li>
+<li>视觉编码器（ViT）产出 embedding；</li>
+<li>通过投影层映射到语言模型维度；</li>
+<li>与文本 token 拼接；</li>
+<li>多模态 embedding 也参与前缀缓存（哈希中包含图像哈希）。</li>
+</ol>
+<p>多模态的显存与计算开销主要在编码器，推理引擎需要做 encoder cache、输入去重等优化。</p>
+<h3 id="384">3.8.4 量化<a class="headerlink" href="#384" title="Permanent link">&para;</a></h3>
+<p>常见格式：</p>
+<ul>
+<li><strong>FP8</strong>（W8A8 / W8A16）：Hopper/Blackwell 原生支持，精度损失小；</li>
+<li><strong>AWQ / GPTQ</strong>：4-bit 权重量化，适合显存受限；</li>
+<li><strong>INT8</strong>：W8A8；</li>
+<li><strong>GGUF</strong>：社区格式，CPU/混合推理常用；</li>
+<li><strong>BitsAndBytes</strong>：易用但性能一般；</li>
+<li><strong>KV Cache 量化</strong>：FP8 KV，直接把 KV 显存减半。</li>
+</ul>
+<p>量化对 decode 尤其有效，因为它直接降低“每 token 要读的字节数”。但要注意 kernel 支持、校准数据、精度回归。</p>
+<h3 id="385">3.8.5 并行与分布式<a class="headerlink" href="#385" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>TP</strong>：<code>--tensor-parallel-size</code>；</li>
+<li><strong>PP</strong>：<code>--pipeline-parallel-size</code>；</li>
+<li><strong>DP</strong>：<code>--data-parallel-size</code>，配合 DP Coordinator；</li>
+<li><strong>EP</strong>：MoE 专家并行，通常与 DP/TP 组合；</li>
+<li><strong>Ray</strong>：多机执行后端；</li>
+<li><strong>PD 分离</strong>：prefill/decode 分开部署，通过 KV connector（NIXL、LMCache 等）传输 KV。</li>
+</ul>
+<h3 id="386">3.8.6 其他<a class="headerlink" href="#386" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Embedding / reward / classification</strong>：池化模型支持；</li>
+<li><strong>Sleep mode</strong>：释放 GPU 显存，按需唤醒；</li>
+<li><strong>Metrics</strong>：Prometheus <code>/metrics</code>，包含队列长度、cache 命中、TTFT/TPOT 等；</li>
+<li><strong>Profiling</strong>：<code>torch.profiler</code>、NVIDIA Nsight 集成；</li>
+<li><strong>OpenAI 兼容</strong>：chat/completions、completions、embeddings、models 等。</li>
+</ul>
+<hr />
+<h2 id="39">3.9 源码导读（概念版）<a class="headerlink" href="#39" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>路径按 <strong>vLLM 0.34.0</strong> 的源码树核对（2026-11-25）；版本更新后可能移动，建议用 <code>grep</code> 按类名定位。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>典型路径</th>
+<th>看什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTP 入口</td>
+<td><code>vllm/entrypoints/openai/api_server.py</code></td>
+<td>路由、请求解析、流式响应</td>
+</tr>
+<tr>
+<td>异步引擎</td>
+<td><code>vllm/v1/engine/async_llm.py</code></td>
+<td>请求提交、输出流</td>
+</tr>
+<tr>
+<td>引擎核心</td>
+<td><code>vllm/v1/engine/core.py</code></td>
+<td>EngineCore 主循环、ZMQ</td>
+</tr>
+<tr>
+<td>输入处理</td>
+<td><code>vllm/v1/engine/input_processor.py</code></td>
+<td>tokenize、多模态、采样参数</td>
+</tr>
+<tr>
+<td>调度器</td>
+<td><code>vllm/v1/core/sched/scheduler.py</code></td>
+<td>schedule()、抢占、token budget</td>
+</tr>
+<tr>
+<td>KV 管理</td>
+<td><code>vllm/v1/core/kv_cache_manager.py</code></td>
+<td>分配、前缀命中、驱逐</td>
+</tr>
+<tr>
+<td>块池</td>
+<td><code>vllm/v1/core/block_pool.py</code></td>
+<td>空闲队列、引用计数、哈希表</td>
+</tr>
+<tr>
+<td>哈希工具</td>
+<td><code>vllm/v1/core/kv_cache_utils.py</code></td>
+<td>块哈希、cache_salt</td>
+</tr>
+<tr>
+<td>Worker</td>
+<td><code>vllm/v1/worker/gpu_worker.py</code></td>
+<td>初始化、显存分析</td>
+</tr>
+<tr>
+<td>ModelRunner</td>
+<td><code>vllm/v1/worker/gpu/model_runner.py</code></td>
+<td>构造输入、执行、采样（0.34.0 路径；旧版为 <code>gpu_model_runner.py</code>）</td>
+</tr>
+<tr>
+<td>注意力后端</td>
+<td><code>vllm/v1/attention/backends/</code></td>
+<td>FlashAttention/FlashInfer/Triton/MLA</td>
+</tr>
+<tr>
+<td>模型实现</td>
+<td><code>vllm/model_executor/models/</code></td>
+<td>各模型 forward</td>
+</tr>
+<tr>
+<td>分布式</td>
+<td><code>vllm/distributed/</code></td>
+<td>TP/PP/EP 通信</td>
+</tr>
+</tbody>
+</table>
+<p>阅读建议：</p>
+<ol>
+<li>先读 <code>scheduler.py</code> 的 <code>schedule()</code>，画出“running/waiting/preempt”三条路径；</li>
+<li>再读 <code>kv_cache_manager.py</code> 的 <code>get_computed_blocks()</code> 与 <code>allocate_slots()</code>；</li>
+<li>然后读 <code>gpu/model_runner.py</code> 的 <code>execute_model()</code>，看 <code>SchedulerOutput</code> 如何变成 GPU 张量；</li>
+<li>最后挑一个 attention backend，看块表如何参与 kernel 寻址。</li>
+</ol>
+<hr />
+<h2 id="310">3.10 优势与局限<a class="headerlink" href="#310" title="Permanent link">&para;</a></h2>
+<h3 id="_1">优势<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>通用性强</strong>：模型覆盖广，文本/多模态/embedding/reward 都能跑；</li>
+<li><strong>硬件与量化生态广</strong>：NVIDIA、AMD、TPU 等，FP8/AWQ/GPTQ/INT8 等；</li>
+<li><strong>工程成熟</strong>：V1 进程架构、异步调度、可观测性、生产部署经验丰富；</li>
+<li><strong>默认性能好</strong>：大多数模型开箱即用，社区调优充分；</li>
+<li><strong>生态大</strong>：文档、issue、集成（Ray、KServe、llm-d 等）丰富。</li>
+</ul>
+<h3 id="_2">局限<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>前缀复用是块级的</strong>：最后不满一块的前缀无法复用；块哈希有计算开销；</li>
+<li><strong>默认调度不感知前缀长度</strong>：FCFS 可能错过高复用机会；SGLang 提供可选的缓存感知调度（需显式开启），前缀密集负载下可能更有优势；</li>
+<li><strong>功能碎片化</strong>：大量特性通过 flag 组合，版本间行为可能变化；</li>
+<li><strong>Python/进程开销</strong>：高 QPS 小模型场景需要仔细调优（CUDA Graph、异步、进程数）；</li>
+<li><strong>不同后端性能差异大</strong>：同一模型在不同 attention backend/量化格式下可能差很多，需要实测。</li>
+</ul>
+<hr />
+<h2 id="311">3.11 常见误区<a class="headerlink" href="#311" title="Permanent link">&para;</a></h2>
+<p><strong>误区 1：PagedAttention 是一种量化或压缩算法。</strong><br />
+不是。它不改变 KV 的数值精度，而是改变 KV 的<strong>存放方式</strong>：用固定块 + 块表管理，减少碎片、支持共享。量化是另一条线。</p>
+<p><strong>误区 2：块表就是操作系统页表，完全一样。</strong><br />
+思想相同，细节不同：KV 块只追加、通常不换出（V1 以 recompute 为主）、块大小受 attention kernel 约束、共享语义是“前缀”而不是任意内存页。</p>
+<p><strong>误区 3：前缀缓存只缓存完整块，所以没什么用。</strong><br />
+长前缀、块对齐的场景命中率很高；块边界损失通常很小（块越小损失越小，块大小依版本为 16/64）。短前缀、非对齐场景才会明显吃亏。</p>
+<p><strong>误区 4：Copy-on-Write 每次写入都会复制。</strong><br />
+只有在“共享块需要被某条序列继续写入”时才复制；只读共享不复制。复制的是整块（示例中 16 token），不是整个序列。</p>
+<p><strong>误区 5：block_size 越小越好。</strong><br />
+块小 → 内部碎片小、前缀粒度细，但块表更长、kernel 寻址更频繁、元数据更多。16 是工程折中，不是越小越优。</p>
+<p><strong>误区 6：vLLM 的调度就是先来先服务。</strong><br />
+FCFS 是默认顺序，但调度器还要做 token budget、chunked prefill、抢占、前缀缓存命中、优先级等决策。</p>
+<p><strong>误区 7：V1 只是 V0 改了个名字。</strong><br />
+V1 重构了进程架构、调度循环、KV 管理和执行路径，是一个较大的架构升级；具体差异以版本发布说明为准。</p>
+<hr />
+<h2 id="312">3.12 本章小结<a class="headerlink" href="#312" title="Permanent link">&para;</a></h2>
+<ul>
+<li>vLLM 的核心是 <strong>PagedAttention</strong>：固定块 + 块表 + 按需分配 + 共享/COW。</li>
+<li>前缀缓存是<strong>块级哈希</strong>：<code>hash(parent, block_tokens, extras)</code>，只缓存完整块，LRU 驱逐，<code>cache_salt</code> 做隔离。</li>
+<li>调度器以 <strong>token budget + max_num_seqs</strong> 为约束，running 优先、waiting 补充，支持 chunked prefill 与 recompute 抢占。</li>
+<li>V1 把引擎拆成 API Server / EngineCore / GPU Worker / DP Coordinator，ZMQ 通信，异步流水。</li>
+<li>执行层支持多种 attention backend、CUDA Graph、torch.compile、GPU 采样、guided decoding。</li>
+<li>高级能力：投机解码、LoRA、多模态、量化、TP/PP/DP/EP、PD 分离。</li>
+<li>优势是通用与成熟；局限是块级前缀复用与默认不感知前缀的调度。</li>
+</ul>
+<blockquote>
+<p><strong>用大白话再说一遍</strong>：vLLM 把 KV 当成仓库里的储物柜，柜子不要求连号；每位客人有一张块表，写着“第几段去几号柜”。相同前缀的客人可以暂时共用柜子，谁要写新东西再复制。前缀缓存就是“给每段柜子算指纹”，下次遇到相同前缀直接复用。V1 则是把前台、调度室、厨房拆成不同房间，让它们能并行工作。</p>
+<p><strong>延伸阅读</strong>：PagedAttention 论文（SOSP 2023）、vLLM 文档中的 <a href="https://docs.vllm.ai/en/v0.34.0/design/paged_attention.html">PagedAttention</a> / <a href="https://docs.vllm.ai/en/v0.34.0/design/prefix_caching.html">Prefix Caching</a> 章节，以及 <code>scheduler.py</code>、<code>kv_cache_manager.py</code> 的源码。</p>
+</blockquote>
+<hr />
+<h2 id="_3">思考题<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<ol>
+<li>为什么 vLLM 的前缀缓存只缓存“完整块”？如果允许缓存不完整块，会带来什么一致性问题？</li>
+<li>块大小从 16 改成 8，前缀复用粒度变细，但元数据和 kernel 开销增加。请定量分析一个“prompt 长度 1000、共享前缀 999”的场景，两种块大小的命中 token 数分别是多少？</li>
+<li>画出 <code>allocate_slots()</code> 在“空闲块不足”时的决策流程：驱逐、抢占、重试分别发生在什么条件？</li>
+<li>Chunked prefill 的 chunk 大小如何影响 TTFT、ITL 和激活峰值？请给出一个调参思路。</li>
+<li>为什么 V1 要把 API Server 和 EngineCore 拆成两个进程？这种拆分在高 QPS 下可能带来什么新问题？</li>
+<li>CUDA Graph 为什么要求固定 batch size？vLLM 如何用 padding 和 piecewise graph 处理动态形状？</li>
+<li>投机解码在什么任务上收益最大？如果接受率只有 30%，还可能加速吗？为什么？</li>
+<li>用自己的话解释：PagedAttention 的“块表”与操作系统页表的异同。</li>
+</ol>
+<blockquote>
+<p>参考答案与提示见<a href="../appendix-b-exercises/">附录 B</a>。</p>
+</blockquote>
+<hr />
+<blockquote>
+<p><strong>继续阅读</strong>：<a href="../04-sglang/">第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈 →</a></p>
+</blockquote>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../02-engine-architecture/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 第 2 章 推理引擎的通用架构">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                第 2 章 推理引擎的通用架构
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../04-sglang/" class="md-footer__link md-footer__link--next" aria-label="下一页: 第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      © 2026 ShiZiMiao · 文档 CC BY 4.0 · 代码 MIT · 版本与性能结论请以官方文档和自测为准
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

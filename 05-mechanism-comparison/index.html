@@ -1,0 +1,3023 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="面向人工智能专业学生的 LLM 推理系统课程讲义，从 PagedAttention 到 RadixAttention，从原理到压测与选型。">
+      
+      
+        <meta name="author" content="LLM Inference Course">
+      
+      
+        <link rel="canonical" href="https://shizimiao.github.io/sglang-vs-vllm-lecture/05-mechanism-comparison/">
+      
+      
+        <link rel="prev" href="../04-sglang/">
+      
+      
+        <link rel="next" href="../06-features-ecosystem/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知 - LLM 推理系统：SGLang 与 vLLM 对比讲义</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#5-vs-vs" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="LLM 推理系统：SGLang 与 vLLM 对比讲义" class="md-header__button md-logo" aria-label="LLM 推理系统：SGLang 与 vLLM 对比讲义" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            LLM 推理系统：SGLang 与 vLLM 对比讲义
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到深色模式"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="切换到深色模式" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到浅色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换到浅色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ShiZiMiao/sglang-vs-vllm-lecture" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ShiZiMiao/sglang-vs-vllm-lecture
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="LLM 推理系统：SGLang 与 vLLM 对比讲义" class="md-nav__button md-logo" aria-label="LLM 推理系统：SGLang 与 vLLM 对比讲义" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    LLM 推理系统：SGLang 与 vLLM 对比讲义
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ShiZiMiao/sglang-vs-vllm-lecture" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ShiZiMiao/sglang-vs-vllm-lecture
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    课程首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开始之前
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    开始之前
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 0 章 预备知识：从“文字接龙”到 GPU 服务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第一部分 基础
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第一部分 基础
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-foundations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 1 章 从一次文本生成到推理服务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-engine-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 2 章 推理引擎的通用架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第二部分 两个引擎
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第二部分 两个引擎
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-vllm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-sglang/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第三部分 对比与实践
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第三部分 对比与实践
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#50" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.0 先用衣柜类比理解两种方案
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#51" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 两条技术路线的一张图
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#52-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 KV Cache 管理对比
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.2 KV Cache 管理对比">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#521" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.1 数据结构
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#522" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.2 粒度：块大小的边界有多重要
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#523-copy-on-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.3 共享与 Copy-on-Write
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#524" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.4 驱逐策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#525" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.5 内存浪费
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#526" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.6 能否组合？
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#53" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 调度策略对比
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.3 调度策略对比">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#531" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.1 默认策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#532" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.2 调度流程的差异
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#533-lpm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.3 什么时候 LPM 真的有用（前提：已启用）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#534" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.4 公平性与尾延迟
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#535-chunked-prefill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.5 Chunked Prefill 与抢占
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#536-cpugpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.6 CPU/GPU 重叠
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#54" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4 一个请求的两种走法
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.4 一个请求的两种走法">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#541-vllm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4.1 vLLM 的走法
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#542-sglang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4.2 SGLang 的走法
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#543" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4.3 差异总结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#55" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5 差异何时真正重要：一个定量框架
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.5 差异何时真正重要：一个定量框架">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#551" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5.1 前缀缓存能省多少
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#552" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5.2 一个数值例子
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#553" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5.3 影响差异大小的因素清单
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#56" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6 执行层对比
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.6 执行层对比">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#561-attention-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6.1 Attention Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#562-cuda-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6.2 CUDA Graph 与编译
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#563" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6.3 采样与结构化输出
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#564-detokenization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6.4 Detokenization 与流式
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#57" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.7 分布式能力对比
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#58" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.8 总对比表
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#59" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.9 什么时候不用纠结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#510" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.10 常见误解澄清
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#511" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.11 本章小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-features-ecosystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 6 章 功能、模型与生态对比
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-benchmarking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 7 章 性能评测：如何科学地比较 vLLM 与 SGLang
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-hands-on/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 8 章 动手实践：启动、调用、压测与调参
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第四部分 深入与选型
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第四部分 深入与选型
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-source-code-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 9 章 源码地图：一次请求在两个引擎中的调用链
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../10-selection-and-future/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 10 章 选型、演进与前沿
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    附录
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-a-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 A 术语表
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-b-exercises/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 B 习题参考答案与实验评分标准
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-c-references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 C 参考资料
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#50" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.0 先用衣柜类比理解两种方案
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#51" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 两条技术路线的一张图
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#52-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 KV Cache 管理对比
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.2 KV Cache 管理对比">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#521" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.1 数据结构
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#522" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.2 粒度：块大小的边界有多重要
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#523-copy-on-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.3 共享与 Copy-on-Write
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#524" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.4 驱逐策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#525" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.5 内存浪费
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#526" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2.6 能否组合？
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#53" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 调度策略对比
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.3 调度策略对比">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#531" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.1 默认策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#532" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.2 调度流程的差异
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#533-lpm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.3 什么时候 LPM 真的有用（前提：已启用）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#534" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.4 公平性与尾延迟
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#535-chunked-prefill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.5 Chunked Prefill 与抢占
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#536-cpugpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3.6 CPU/GPU 重叠
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#54" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4 一个请求的两种走法
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.4 一个请求的两种走法">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#541-vllm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4.1 vLLM 的走法
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#542-sglang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4.2 SGLang 的走法
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#543" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4.3 差异总结
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#55" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5 差异何时真正重要：一个定量框架
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.5 差异何时真正重要：一个定量框架">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#551" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5.1 前缀缓存能省多少
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#552" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5.2 一个数值例子
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#553" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5.3 影响差异大小的因素清单
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#56" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6 执行层对比
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.6 执行层对比">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#561-attention-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6.1 Attention Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#562-cuda-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6.2 CUDA Graph 与编译
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#563" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6.3 采样与结构化输出
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#564-detokenization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6.4 Detokenization 与流式
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#57" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.7 分布式能力对比
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#58" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.8 总对比表
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#59" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.9 什么时候不用纠结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#510" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.10 常见误解澄清
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#511" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.11 本章小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="5-vs-vs">第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知<a class="headerlink" href="#5-vs-vs" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>本章目标</strong>：把第 3、4 章的知识放在同一张桌子上，逐项比较 KV 管理、调度、执行与分布式策略，并回答一个关键问题：<strong>这些设计差异在什么 workload 下才真正转化为性能差异？</strong></p>
+<p><strong>先修知识</strong>：<a href="../03-vllm/">第 3 章</a> 的块表/块哈希、<a href="../04-sglang/">第 4 章</a> 的基数树/缓存感知调度。如果只记得“vLLM 分块、SGLang 种树”，也能读，但建议先补完这两章。</p>
+<p><strong>一句话概括</strong>：vLLM 像“固定大小的收纳盒 + 盒号清单”，SGLang 像“按前缀共享的文件夹树”；一个胜在通用和简单，一个胜在前缀复用和可选的缓存感知调度。</p>
+<p><strong>给零基础同学</strong>：本章不是要你判定“谁更强”，而是教你判断“在什么条件下谁更合适”。先看 5.0 的类比，再看表格，最后用 5.5 的公式估算自己的场景。</p>
+</blockquote>
+<hr />
+<h2 id="50">5.0 先用衣柜类比理解两种方案<a class="headerlink" href="#50" title="Permanent link">&para;</a></h2>
+<p>假设你要整理一整个衣柜：</p>
+<p><strong>vLLM 的做法：固定收纳盒</strong></p>
+<ul>
+<li>把衣服按每 16 件装进一个标准收纳盒；</li>
+<li>每个盒子上贴编号，柜子里的盒子可以不连号；</li>
+<li>一张清单记录“第 1 盒放 7 号格、第 2 盒放 3 号格……”；</li>
+<li>两个搭配如果前几盒完全一样，可以暂时共用盒子；</li>
+<li>要改其中一件，就把那一盒复制一份再改；</li>
+<li>盒子可能有空位（最后没装满），但不会出现“总空间够、却找不到连续大空间”的问题。</li>
+</ul>
+<p><strong>SGLang 的做法：按搭配挂衣杆</strong></p>
+<ul>
+<li>把“套装搭配”从前往后挂在同一根杆上；</li>
+<li>相同的搭配共享前面那段杆，分叉后各挂各的；</li>
+<li>每条搭配记一个“从杆的哪个位置开始”的索引；</li>
+<li>不要求固定长度，任意长度的共享前缀都能复用；</li>
+<li>分支很多、前缀很长时，共享得非常细；</li>
+<li>但要维护一棵树，找位置、分叉、回收都需要额外操作。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>衣柜方案</th>
+<th>引擎</th>
+<th>强项</th>
+<th>代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>固定收纳盒 + 盒号清单</td>
+<td>vLLM</td>
+<td>通用、简单、kernel 友好</td>
+<td>共享粒度受 16 token 盒子限制</td>
+</tr>
+<tr>
+<td>按搭配挂衣杆 + 树</td>
+<td>SGLang</td>
+<td>token 级前缀复用、缓存感知调度（可选）</td>
+<td>树维护开销、公平性风险</td>
+</tr>
+</tbody>
+</table>
+<p>这个类比只强调“索引与共享方式”；SGLang 底层仍然需要盒子/槽位来放 KV，只是它可以把共享粒度做到单个 token（<code>page_size=1</code> 时），而不是一整个盒子。理解了这张表，后面的对比表就只是“细节展开”。</p>
+<hr />
+<h2 id="51">5.1 两条技术路线的一张图<a class="headerlink" href="#51" title="Permanent link">&para;</a></h2>
+<p>两条路线的端到端差异可以压缩成图 5-1：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>vLLM:
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  请求 → FCFS/token budget 调度
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>       → 固定大小块（如 16 token）
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>       → block table: 逻辑块 → 物理块
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>       → 块级哈希前缀缓存 + LRU
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>       → PagedAttention kernel
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>       → CUDA Graph / 多种 backend
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>SGLang:
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>  请求 → FCFS（默认）/ LPM / DFS-weight（可选）
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>       → token 级 KV 池（page size 默认 1）
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>       → radix tree: token 前缀 → KV 索引
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>       → 节点分裂 + 引用计数 + LRU 叶子驱逐
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>       → FlashInfer/FA3/FlashMLA 等 backend
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>       → overlap scheduler + CUDA Graph
+</code></pre></div>
+<p><em>图 5-1　vLLM 与 SGLang 的两条技术路线</em></p>
+<p>两者都建立在 continuous batching 之上，都支持 chunked prefill、prefix caching、CUDA Graph、投机解码、TP/PP/DP/EP、PD 分离。<strong>差异不在“有没有”，而在“数据结构与默认策略”</strong>。</p>
+<hr />
+<h2 id="52-kv-cache">5.2 KV Cache 管理对比<a class="headerlink" href="#52-kv-cache" title="Permanent link">&para;</a></h2>
+<h3 id="521">5.2.1 数据结构<a class="headerlink" href="#521" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>vLLM PagedAttention</th>
+<th>SGLang RadixAttention</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>基本单位</td>
+<td>固定大小 block（长期默认 16 token，0.34.0 起默认 64）</td>
+<td>分页/槽位池，<code>page_size</code> 默认 1（可配置）</td>
+</tr>
+<tr>
+<td>索引结构</td>
+<td>每条序列一张 block table</td>
+<td>全局一棵基数树 + 每请求的 KV 索引列表</td>
+</tr>
+<tr>
+<td>逻辑→物理</td>
+<td>块号映射</td>
+<td>树节点直接存 KV 池索引</td>
+</tr>
+<tr>
+<td>共享粒度</td>
+<td>完整块</td>
+<td>任意 token 前缀（<code>page_size=1</code> 时）</td>
+</tr>
+<tr>
+<td>共享机制</td>
+<td>引用计数 + copy-on-write</td>
+<td>引用计数 + 节点共享</td>
+</tr>
+<tr>
+<td>回收粒度</td>
+<td>块</td>
+<td>叶子节点（可含多个 token）</td>
+</tr>
+<tr>
+<td>驱逐策略</td>
+<td>空闲队列 LRU</td>
+<td>叶子 LRU + 引用计数保护</td>
+</tr>
+<tr>
+<td>元数据</td>
+<td>块表、哈希表</td>
+<td>树节点、children、key/value</td>
+</tr>
+<tr>
+<td>适用负载</td>
+<td>通用、变长、多租户</td>
+<td>前缀密集、多轮、Agent/RAG</td>
+</tr>
+</tbody>
+</table>
+<h3 id="522">5.2.2 粒度：块大小的边界有多重要<a class="headerlink" href="#522" title="Permanent link">&para;</a></h3>
+<p>假设共享前缀长度为 2005 token，块大小为 16（vLLM 长期默认；0.34.0 起默认 64，这里用 16 方便与历史资料对照）：</p>
+<ul>
+<li>vLLM：能命中的完整块是 <span class="arithmatex">\(\lfloor 2005/16 \rfloor = 125\)</span> 块，即 2000 token；剩下 5 个 token 需要重算；</li>
+<li>SGLang：可以精确命中 2005 token，一个都不浪费。</li>
+</ul>
+<p>5 个 token 听起来微不足道，但在以下场景会被放大：</p>
+<ul>
+<li>共享前缀很短、请求很多（例如每条请求共享 20 token 的模板，块级只能命中 16）；</li>
+<li>前缀长度经常不是块大小的整数倍（chat template 拼接后很常见）；</li>
+<li>大量分支只在末尾几个 token 不同（Agent 的“选择”节点）。</li>
+</ul>
+<p>不过，如果前缀很长（几千 token）且块对齐，两者的命中率差异通常很小（在常见长前缀测试中往往不到 1%，但会随 workload 变化）。<strong>不要因为“token 级”三个字就认为 vLLM 的前缀缓存无效</strong>。</p>
+<blockquote>
+<p>上面的“精确命中 2005 token”默认 SGLang 的 <code>page_size=1</code>。如果把它设成 16/32，SGLang 的匹配与分配也会变成页级，token 级优势会缩小；此时要按实际 page size 重新计算。反过来，vLLM 0.34 的 <code>block_size</code> 默认 64，但可用 <code>prefix_match_unit</code> 把命中粒度做得比物理块更细，具体以启动配置为准。</p>
+</blockquote>
+<h3 id="523-copy-on-write">5.2.3 共享与 Copy-on-Write<a class="headerlink" href="#523-copy-on-write" title="Permanent link">&para;</a></h3>
+<p>vLLM 的 COW 发生在“共享块还有空位、某条序列要往这个空位继续写入”时（图 5-2）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>A、B 共享块 9（只填了一半）
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>B 要往块 9 的空位写 → 分配块 15，复制块 9 已有内容 → B 的块表改为 [..., 15]
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>若块 9 已满：B 直接分配新块追加，不需要复制块 9
+</code></pre></div>
+<p><em>图 5-2　块级 COW 与树节点共享的写入路径</em></p>
+<p>SGLang 的共享发生在树节点上：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>A、B 共享节点 N 的 KV 索引
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>B 继续生成 → 新 token 的 KV 写入新节点/新索引，不影响 N
+</code></pre></div>
+<p>区别在于：</p>
+<ul>
+<li>vLLM 的共享单位是“整块”；在共享块内追加时要复制整块（示例中 16 token 的 K/V），块已满时则直接开新块；</li>
+<li>SGLang 的共享单位是“树节点覆盖的 token 段”，分叉时只需为新后缀分配 KV，不需要复制共享段。</li>
+</ul>
+<p>对于“同一前缀、大量短分支”的树状生成（如 beam search、Agent 分支），SGLang 的分叉成本更低。</p>
+<h3 id="524">5.2.4 驱逐策略<a class="headerlink" href="#524" title="Permanent link">&para;</a></h3>
+<p>两者都是 LRU 变体，但作用对象不同：</p>
+<ul>
+<li>vLLM：空闲块队列按释放顺序排列，头部最久未使用；命中时把块从空闲队列摘下；释放时按逆序放回尾部。</li>
+<li>SGLang：按树节点的 <code>last_access_time</code> 找最久未访问的<strong>叶子</strong>；内部节点因为被多个分支共享，不能单独释放。</li>
+</ul>
+<p>这带来一个细微差异：</p>
+<ul>
+<li>块级 LRU 可能把“某个长前缀的中间块”驱逐掉，导致整段前缀失效；</li>
+<li>树级 LRU 只驱逐叶子，天然保护共享的中间前缀，但也可能保留暂时不用的整棵子树，需要额外的修剪/压缩策略。</li>
+</ul>
+<p>两者都在工程上做了优化，实际命中率取决于访问模式与缓存容量，不能只凭数据结构下结论。</p>
+<h3 id="525">5.2.5 内存浪费<a class="headerlink" href="#525" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>浪费类型</th>
+<th>vLLM</th>
+<th>SGLang</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>外部碎片</td>
+<td>几乎没有</td>
+<td>几乎没有（token 池 + 任意索引）</td>
+</tr>
+<tr>
+<td>内部碎片</td>
+<td>最后一块最多 15 token</td>
+<td>几乎没有（<code>page_size=1</code> 时按 token 分配；&gt;1 时按页产生碎片）</td>
+</tr>
+<tr>
+<td>元数据</td>
+<td>块表 + 哈希表</td>
+<td>树节点 + 索引列表</td>
+</tr>
+<tr>
+<td>预留</td>
+<td>按块增长</td>
+<td>按 token 增长</td>
+</tr>
+</tbody>
+</table>
+<p>SGLang 在“细粒度”上占优，但树节点本身也有内存开销；vLLM 在“元数据简单、kernel 友好”上占优。对于长上下文、大并发，两者都会把大部分显存用于 KV 数据本身，元数据占比通常较小。</p>
+<h3 id="526">5.2.6 能否组合？<a class="headerlink" href="#526" title="Permanent link">&para;</a></h3>
+<p>可以。概念上：</p>
+<ul>
+<li>用分页块管理物理 KV，降低元数据与 kernel 寻址开销；</li>
+<li>用基数树管理“前缀 → 块序列”的映射，做 token 级匹配与共享；</li>
+<li>块内保留部分 token 的细粒度索引，或用“最后一块特殊处理”来支持非对齐前缀。</li>
+</ul>
+<p>事实上，两个引擎都在向彼此靠拢：vLLM 支持更灵活的前缀缓存与 KV connector；SGLang 支持 page size &gt;1 的 backend 与分层缓存。<strong>“页表 vs 基数树”是教学上的简化，工程实现是混合的。</strong></p>
+<hr />
+<h2 id="53">5.3 调度策略对比<a class="headerlink" href="#53" title="Permanent link">&para;</a></h2>
+<h3 id="531">5.3.1 默认策略<a class="headerlink" href="#531" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>vLLM</th>
+<th>SGLang</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>默认顺序</td>
+<td>FCFS</td>
+<td>FCFS（当前版本）</td>
+</tr>
+<tr>
+<td>前缀感知</td>
+<td>缓存命中，但不按命中长度排序</td>
+<td>默认不排序；开启 LPM 等策略后才按命中长度排序</td>
+</tr>
+<tr>
+<td>可选策略</td>
+<td>FCFS、priority</td>
+<td>fcfs、lpm、dfs-weight、hrrn、shortest-prefill-first、random 等（0.5.23 共 9 种）</td>
+</tr>
+<tr>
+<td>公平性</td>
+<td>较好</td>
+<td>FCFS 较公平；LPM 可能饿死低命中请求</td>
+</tr>
+<tr>
+<td>实现复杂度</td>
+<td>较低</td>
+<td>FCFS 较低；缓存感知策略需匹配 + 排序</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>重要澄清</strong>：很多旧文章说“SGLang 默认 LPM”，这并不完全是错——SGLang 0.4.0 的默认值确实是 <code>lpm</code>；但 0.4.6 起已把默认值改为 <code>fcfs</code>，0.5.23 也沿用 <code>fcfs</code>。要用 LPM，需要显式指定 <code>--schedule-policy lpm</code>。所以下面讨论的 LPM 优势，都指“启用缓存感知策略之后”的行为，而不是新版本的开箱默认。</p>
+</blockquote>
+<h3 id="532">5.3.2 调度流程的差异<a class="headerlink" href="#532" title="Permanent link">&para;</a></h3>
+<p>vLLM（概念版）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>1. 先跑 running：decode 或继续 chunked prefill
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>2. 再跑 waiting：按到达顺序准入
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>3. token budget 用完则停
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>4. 显存不足则抢占（recompute）
+</code></pre></div>
+<p>SGLang（概念版）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>1. 对 waiting 中每个请求做 match_prefix，得到可复用 token 数
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>2. 若启用 LPM，按匹配长度排序；若默认 FCFS，则按到达顺序
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>3. 先跑 running，再用剩余预算准入 waiting
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>4. 高命中请求优先（仅 LPM 等策略），必要时 chunked prefill
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>5. 显存不足则驱逐 LRU 叶子 / 抢占
+</code></pre></div>
+<p>差异的核心是第 2 步：<strong>vLLM 的 waiting 顺序是“谁先来”；SGLang 默认也是“谁先来”，但开启 LPM 后可以变成“谁命中多”</strong>。</p>
+<h3 id="533-lpm">5.3.3 什么时候 LPM 真的有用（前提：已启用）<a class="headerlink" href="#533-lpm" title="Permanent link">&para;</a></h3>
+<p>LPM 的收益取决于“缓存命中差异”是否足够大：</p>
+<ul>
+<li>如果所有请求都命中相同长度（例如统一 system prompt），排序没有意义；</li>
+<li>如果缓存容量足够大，所有请求最终都能命中，排序只影响谁先谁后；</li>
+<li>如果缓存容量紧张、请求前缀差异大，LPM 能避免“高命中请求在排队时被驱逐”，收益明显。</li>
+</ul>
+<p>典型受益场景：</p>
+<ul>
+<li>多轮对话：老会话的前缀很长，新会话前缀短；优先老会话能避免其长前缀被驱逐；</li>
+<li>Agent 集群：同一任务的多个分支共享长轨迹；</li>
+<li>RAG：同一批文档被多个 query 共享，文档前缀很长；</li>
+<li>批量评测/RL rollout：同一 prompt 的多次采样。</li>
+</ul>
+<h3 id="534">5.3.4 公平性与尾延迟<a class="headerlink" href="#534" title="Permanent link">&para;</a></h3>
+<p>LPM 的代价是可能让低命中请求长期排队。生产系统需要：</p>
+<ul>
+<li>等待时间 aging；</li>
+<li>每租户配额；</li>
+<li>在线/离线分流；</li>
+<li>对延迟敏感的请求使用 FCFS 或显式优先级。</li>
+</ul>
+<p>vLLM 的 FCFS 更“可预测”，但可能在高缓存压力下错过复用机会。<strong>没有一种策略在所有流量下最优</strong>，这也是两家都提供多种策略的原因。</p>
+<h3 id="535-chunked-prefill">5.3.5 Chunked Prefill 与抢占<a class="headerlink" href="#535-chunked-prefill" title="Permanent link">&para;</a></h3>
+<p>两者都支持 chunked prefill，但细节不同：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>vLLM</th>
+<th>SGLang</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>预算参数</td>
+<td><code>max_num_batched_tokens</code></td>
+<td><code>max-prefill-tokens</code> / <code>chunked-prefill-size</code></td>
+</tr>
+<tr>
+<td>混跑</td>
+<td>prefill chunk + decode 同一 batch</td>
+<td>同样支持</td>
+</tr>
+<tr>
+<td>抢占</td>
+<td>以 recompute 为主</td>
+<td>recompute；配合 RadixCache 减少重算</td>
+</tr>
+<tr>
+<td>缓存对抢占的影响</td>
+<td>被抢占后重算，可能命中前缀缓存</td>
+<td>被抢占后重算，可能命中 radix tree</td>
+</tr>
+</tbody>
+</table>
+<p>SGLang 的 RadixCache 在抢占/重算时有一个潜在优势：如果前缀还在树中，重算可以复用；vLLM 的块级缓存也能命中，但受块对齐与驱逐顺序影响。</p>
+<h3 id="536-cpugpu">5.3.6 CPU/GPU 重叠<a class="headerlink" href="#536-cpugpu" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>vLLM V1</strong>：API Server、EngineCore、Worker 分离，异步调度；调度与执行可以流水化。</li>
+<li><strong>SGLang</strong>：显式的 overlap scheduler，把下一步的 CPU 调度与当前步的 GPU 计算重叠；提供 <code>--disable-overlap-schedule</code> 开关。</li>
+</ul>
+<p>两家都在解决同一个问题：小模型、高 QPS 时，CPU 侧的 Python 调度可能比 GPU 前向还慢。实现方式不同，目标一致。实际收益取决于模型大小、batch、CPU 性能与实现成熟度。</p>
+<hr />
+<h2 id="54">5.4 一个请求的两种走法<a class="headerlink" href="#54" title="Permanent link">&para;</a></h2>
+<p>用一个具体例子把差异落地。</p>
+<p><strong>设定</strong>：</p>
+<ul>
+<li>模型：Llama-3-8B，block_size=16；</li>
+<li>请求：prompt 3000 token，其中前 2000 token 与缓存中的某个前缀相同；输出 200 token；</li>
+<li>当前 KV 池充足，无抢占。</li>
+</ul>
+<h3 id="541-vllm">5.4.1 vLLM 的走法<a class="headerlink" href="#541-vllm" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>1. Tokenize → 3000 tokens
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>2. 计算块哈希：
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>   - 前 2000 token = 125 个完整块
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>   - 逐块查 cached_block_hash_to_block
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>   - 命中 125 块，引用计数 +1
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>3. 剩余 1000 token 需要 prefill：
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>   - 分配 63 个新块（1000/16 = 62.5 → 63）
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>   - 最后一个块只用了 8 个 token
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>4. Prefill 1000 token，写入新块
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>5. Decode 200 步，每步追加 1 token，必要时分配新块
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>6. 请求结束：
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>   - 新生成的完整块注册哈希，供后续复用
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>   - 所有块引用计数减 1，回到空闲队列
+</code></pre></div>
+<h3 id="542-sglang">5.4.2 SGLang 的走法<a class="headerlink" href="#542-sglang" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>1. Tokenize → 3000 tokens
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>2. match_prefix：
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>   - 在 radix tree 中匹配到 2000 token 的节点
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>   - 返回 2000 个 KV 索引，引用计数 +1
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>3. 剩余 1000 token 需要 prefill：
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>   - 从 token 池分配 1000 个槽位
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>   - 调用 attention backend，用已匹配的 KV 索引 + 新 token 计算
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>4. Prefill 1000 token
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>5. Decode 200 步，每步分配 1 个新槽位
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>6. 请求结束：
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>   - 把完整序列（3000 + 200）插入 radix tree
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>   - 未共享部分的 KV 保留在树中，引用计数归零后可被驱逐
+</code></pre></div>
+<h3 id="543">5.4.3 差异总结<a class="headerlink" href="#543" title="Permanent link">&para;</a></h3>
+<p>在这个“块对齐、前缀很长”的例子中，两者都复用了 2000 token，差异很小。真正拉开差距的是：</p>
+<ul>
+<li>前缀不是 16 的整数倍（SGLang 多命中几个 token）；</li>
+<li>大量分支共享前缀（SGLang 的树节点共享更细）；</li>
+<li>缓存压力大、需要按命中长度排序（SGLang 开启 LPM 后）；</li>
+<li>高 QPS 小模型（overlap scheduler 的收益）。</li>
+</ul>
+<p><strong>结论</strong>：不要用“2000 token 共享前缀”这种对两者都友好的例子去证明谁更强；要构造“非对齐、分支多、缓存压力大”的 workload。</p>
+<hr />
+<h2 id="55">5.5 差异何时真正重要：一个定量框架<a class="headerlink" href="#55" title="Permanent link">&para;</a></h2>
+<h3 id="551">5.5.1 前缀缓存能省多少<a class="headerlink" href="#551" title="Permanent link">&para;</a></h3>
+<p>设：</p>
+<ul>
+<li>prompt 长度 <span class="arithmatex">\(L_p\)</span>；</li>
+<li>命中前缀长度 <span class="arithmatex">\(L_h\)</span>；</li>
+<li>prefill 单位 token 成本 <span class="arithmatex">\(c_p\)</span>（与模型、硬件有关）；</li>
+<li>decode 每 token 成本 <span class="arithmatex">\(c_d\)</span>；</li>
+<li>输出长度 <span class="arithmatex">\(L_o\)</span>；</li>
+<li>排队时间 <span class="arithmatex">\(t_{\text{queue}}\)</span>；</li>
+<li>第一个 token 的采样/传输时间 <span class="arithmatex">\(t_{\text{first sample}}\)</span>。</li>
+</ul>
+<p>则：</p>
+<div class="arithmatex">\[
+\text{TTFT} \approx t_{\text{queue}} + c_p (L_p - L_h) + t_{\text{first sample}}
+\]</div>
+<div class="arithmatex">\[
+\text{E2E} \approx \text{TTFT} + c_d (L_o - 1)
+\]</div>
+<p><strong>这两个式子怎么来的？</strong></p>
+<ul>
+<li>一个请求真正要 prefill 的 token 数，是“总 prompt 长度 - 已命中前缀长度” = <span class="arithmatex">\(L_p - L_h\)</span>；</li>
+<li>所以 prefill 时间是 <span class="arithmatex">\(c_p (L_p - L_h)\)</span>；</li>
+<li>加上排队和第一个 token 的采样/传输，就是 TTFT；</li>
+<li>第一个 token 已经包含在 TTFT 里了，后面只剩 <span class="arithmatex">\(L_o - 1\)</span> 个 token 要 decode，所以 E2E 再加 <span class="arithmatex">\(c_d (L_o - 1)\)</span>。</li>
+</ul>
+<p>前缀缓存对 TTFT 的节省比例约为：</p>
+<div class="arithmatex">\[
+\frac{\Delta \text{TTFT}}{\text{TTFT}} \approx \frac{c_p L_h}{c_p L_p + t_{\text{queue}}}
+\]</div>
+<p><strong>怎么理解这个比例？</strong></p>
+<ul>
+<li>没缓存时，prefill 要花 <span class="arithmatex">\(c_p L_p\)</span>；</li>
+<li>有缓存时，只花 <span class="arithmatex">\(c_p (L_p - L_h)\)</span>；</li>
+<li>省下的就是 <span class="arithmatex">\(c_p L_h\)</span>；</li>
+<li>分母用“没缓存时的 TTFT”做基准，忽略 <span class="arithmatex">\(t_{\text{first sample}}\)</span>，所以得到上面的近似。</li>
+</ul>
+<p>对 E2E 的节省比例则被 decode 稀释：</p>
+<div class="arithmatex">\[
+\frac{\Delta \text{E2E}}{\text{E2E}} \approx \frac{c_p L_h}{c_p L_p + c_d L_o}
+\]</div>
+<p>分母里多了 decode 时间 <span class="arithmatex">\(c_d L_o\)</span>，而分子仍然是省下的 prefill 时间 <span class="arithmatex">\(c_p L_h\)</span>。输出越长，分母越大，比例越小。</p>
+<p><strong>推论</strong>：</p>
+<ul>
+<li>输出越长，前缀缓存对 E2E 的相对收益越小；</li>
+<li>输出越短（分类、路由、JSON 抽取、工具调用），前缀缓存越值钱；</li>
+<li>排队时间越长，缓存节省越容易被掩盖。</li>
+</ul>
+<h3 id="552">5.5.2 一个数值例子<a class="headerlink" href="#552" title="Permanent link">&para;</a></h3>
+<p>假设 <span class="arithmatex">\(c_p = 0.01\)</span> ms/token，<span class="arithmatex">\(c_d = 0.05\)</span> ms/token，<span class="arithmatex">\(L_p = 3000\)</span>，<span class="arithmatex">\(L_h = 2000\)</span>，<span class="arithmatex">\(L_o = 200\)</span>，并忽略排队与采样时间。</p>
+<p><strong>无缓存</strong>：</p>
+<div class="arithmatex">\[
+\begin{aligned}
+\text{TTFT} &amp;= 0.01 \times 3000 = 30\text{ ms} \\
+\text{E2E} &amp;= 30 + 0.05 \times (200 - 1) \\
+&amp;= 30 + 9.95 \\
+&amp;= 39.95\text{ ms} \approx 40\text{ ms}
+\end{aligned}
+\]</div>
+<p><strong>有缓存（命中 2000 token）</strong>：</p>
+<p>实际 prefill token 数：</p>
+<div class="arithmatex">\[
+3000 - 2000 = 1000
+\]</div>
+<div class="arithmatex">\[
+\begin{aligned}
+\text{TTFT} &amp;= 0.01 \times 1000 = 10\text{ ms} \\
+\text{E2E} &amp;= 10 + 9.95 = 19.95\text{ ms} \approx 20\text{ ms}
+\end{aligned}
+\]</div>
+<p><strong>节省</strong>：</p>
+<p>TTFT 节省比例：</p>
+<div class="arithmatex">\[
+\frac{30 - 10}{30} = 66.7\%
+\]</div>
+<p>E2E 节省比例：</p>
+<div class="arithmatex">\[
+\frac{39.95 - 19.95}{39.95} \approx 50.1\%
+\]</div>
+<p>如果 <span class="arithmatex">\(L_o = 2000\)</span>：</p>
+<div class="arithmatex">\[
+\begin{aligned}
+\text{E2E without cache} &amp;= 30 + 0.05 \times 1999 \\
+&amp;\approx 30 + 99.95 = 129.95\text{ ms} \\
+\text{E2E with cache} &amp;= 10 + 99.95 = 109.95\text{ ms} \\
+\text{savings} &amp;= \frac{129.95 - 109.95}{129.95} \approx 15.4\%
+\end{aligned}
+\]</div>
+<p>可以看到：前缀缓存省下的 20 ms 是固定的，但输出从 200 增加到 2000 后，E2E 的分母变大，节省比例从 50% 降到 15%。<strong>不是缓存效果变差了，而是 decode 占比变高了。</strong></p>
+<p>这解释了为什么 SGLang 在 Agent、RAG、短输出结构化任务中声量很大，而在“长文创作”类负载中，两家差距会被 decode 稀释。</p>
+<h3 id="553">5.5.3 影响差异大小的因素清单<a class="headerlink" href="#553" title="Permanent link">&para;</a></h3>
+<p><em>表 5-1　影响差异大小的因素</em></p>
+<table>
+<thead>
+<tr>
+<th>因素</th>
+<th>差异变大</th>
+<th>差异变小</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>共享前缀比例</td>
+<td>高（&gt;50%）</td>
+<td>低（&lt;10%）</td>
+</tr>
+<tr>
+<td>前缀长度对齐</td>
+<td>不对齐（非 16 倍数）</td>
+<td>对齐</td>
+</tr>
+<tr>
+<td>分支数量</td>
+<td>多（树状/并行采样）</td>
+<td>少（单链）</td>
+</tr>
+<tr>
+<td>缓存压力</td>
+<td>大（频繁驱逐）</td>
+<td>小（缓存充足）</td>
+</tr>
+<tr>
+<td>输出长度</td>
+<td>短</td>
+<td>长</td>
+</tr>
+<tr>
+<td>请求到达模式</td>
+<td>突发、同时到达</td>
+<td>均匀、串行</td>
+</tr>
+<tr>
+<td>模型大小</td>
+<td>小（prefill 占比高、CPU 开销敏感）</td>
+<td>大（decode 主导）</td>
+</tr>
+<tr>
+<td>SLO 关注点</td>
+<td>TTFT</td>
+<td>长输出 E2E</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="56">5.6 执行层对比<a class="headerlink" href="#56" title="Permanent link">&para;</a></h2>
+<h3 id="561-attention-backend">5.6.1 Attention Backend<a class="headerlink" href="#561-attention-backend" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>vLLM</th>
+<th>SGLang</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FlashAttention</td>
+<td>支持（FA2/FA3）</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>FlashInfer</td>
+<td>支持</td>
+<td>深度使用，许多模型默认</td>
+</tr>
+<tr>
+<td>Triton</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>FlexAttention</td>
+<td>支持</td>
+<td>视版本</td>
+</tr>
+<tr>
+<td>MLA（DeepSeek）</td>
+<td>FlashMLA/CUTLASS 等</td>
+<td>FlashMLA/CUTLASS，DP attention 配套</td>
+</tr>
+<tr>
+<td>自定义 mask/滑动窗口</td>
+<td>支持较广</td>
+<td>支持主流模型</td>
+</tr>
+<tr>
+<td>后端选择</td>
+<td><code>--attention-backend</code></td>
+<td><code>--attention-backend</code></td>
+</tr>
+</tbody>
+</table>
+<p>SGLang 与 FlashInfer 社区关系更紧，部分 kernel 会先在其落地；vLLM 的后端覆盖更广，长尾模型/硬件更稳。<strong>具体模型上谁快，必须实测。</strong></p>
+<h3 id="562-cuda-graph">5.6.2 CUDA Graph 与编译<a class="headerlink" href="#562-cuda-graph" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>vLLM</th>
+<th>SGLang</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Decode CUDA Graph</td>
+<td>支持，按 batch size 分桶</td>
+<td>支持，按 batch size 分桶</td>
+</tr>
+<tr>
+<td>Prefill 图/编译</td>
+<td>piecewise CUDA Graph + torch.compile</td>
+<td>可选 torch.compile；主要靠 CUDA Graph</td>
+</tr>
+<tr>
+<td>动态形状处理</td>
+<td>padding + 分段</td>
+<td>padding + 分桶</td>
+</tr>
+<tr>
+<td>调试开关</td>
+<td><code>--enforce-eager</code></td>
+<td><code>--disable-decode-cuda-graph</code> / <code>--disable-prefill-cuda-graph</code></td>
+</tr>
+</tbody>
+</table>
+<p>两家都能把 decode 的 kernel launch 开销压到很低；差异更多在“哪些模型/后端组合被充分调优”。</p>
+<h3 id="563">5.6.3 采样与结构化输出<a class="headerlink" href="#563" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>vLLM</th>
+<th>SGLang</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GPU 采样</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>约束解码后端</td>
+<td>xgrammar / guidance（outlines 视版本）</td>
+<td>XGrammar 为主</td>
+</tr>
+<tr>
+<td>压缩 FSM</td>
+<td>视后端</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>Jump-forward</td>
+<td>视后端</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>JSON Schema / Regex / EBNF</td>
+<td>支持</td>
+<td>支持，原生接口更完整</td>
+</tr>
+<tr>
+<td>语法编译重叠</td>
+<td>部分支持</td>
+<td>强调与 GPU 计算重叠</td>
+</tr>
+</tbody>
+</table>
+<p>结构化输出是 SGLang 的传统强项，但 vLLM 通过 xgrammar 也能获得很好的性能。对于“输出必须合法 JSON”的业务，两者都可用，差异在细节与成熟度。</p>
+<h3 id="564-detokenization">5.6.4 Detokenization 与流式<a class="headerlink" href="#564-detokenization" title="Permanent link">&para;</a></h3>
+<ul>
+<li>vLLM：API Server 进程负责 detokenize；V1 做了增量处理与异步。</li>
+<li>SGLang：独立的 DetokenizerManager，与调度/执行流水化；对高 QPS 流式场景更友好。</li>
+</ul>
+<p>中文/emoji 的增量 detokenize 是常见坑：一个 UTF-8 字符可能跨 token，必须缓存不完整字节，不能直接 <code>decode</code> 每个 token。两家都处理了，但自研服务时容易踩。</p>
+<hr />
+<h2 id="57">5.7 分布式能力对比<a class="headerlink" href="#57" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>vLLM</th>
+<th>SGLang</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TP</td>
+<td>支持，成熟</td>
+<td>支持，成熟</td>
+</tr>
+<tr>
+<td>PP</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>DP</td>
+<td>支持，DP Coordinator</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>EP（MoE）</td>
+<td>支持</td>
+<td>支持，DeepSeek 大规模经验</td>
+</tr>
+<tr>
+<td>DP Attention</td>
+<td>视模型/版本</td>
+<td>明确支持（DeepSeek 类）</td>
+</tr>
+<tr>
+<td>EPLB</td>
+<td>支持（较新版本，<code>--enable-eplb</code>）</td>
+<td>支持，<code>--enable-eplb</code></td>
+</tr>
+<tr>
+<td>PD 分离</td>
+<td>支持，多种 KV connector</td>
+<td>支持，mooncake/nixl 等</td>
+</tr>
+<tr>
+<td>分层缓存</td>
+<td>有 CPU offload / connector 生态</td>
+<td>HiCache（GPU/CPU/磁盘）</td>
+</tr>
+<tr>
+<td>多机</td>
+<td>Ray 等</td>
+<td>多机 TP/EP、PD</td>
+</tr>
+<tr>
+<td>路由</td>
+<td>外部网关/llm-d</td>
+<td>自带 cache-aware router</td>
+</tr>
+</tbody>
+</table>
+<p>vLLM 的分布式生态更“通用”，与 Ray、KServe、llm-d 等集成多；SGLang 在大规模 MoE、PD 分离、缓存感知路由上有更完整的“开箱”方案。选型时要看你的集群规模与模型类型。</p>
+<hr />
+<h2 id="58">5.8 总对比表<a class="headerlink" href="#58" title="Permanent link">&para;</a></h2>
+<p>表 5-2 把前面几节的差异收拢到一张表里，便于横向查阅。</p>
+<p><em>表 5-2　vLLM 与 SGLang 总对比</em></p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>vLLM</th>
+<th>SGLang</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>核心论文</td>
+<td>PagedAttention (SOSP'23)</td>
+<td>RadixAttention / SGLang (NeurIPS'24)</td>
+</tr>
+<tr>
+<td>KV 单位</td>
+<td>固定块（长期默认 16，0.34.0 起默认 64）</td>
+<td>分页/槽位，<code>page_size</code> 默认 1</td>
+</tr>
+<tr>
+<td>索引</td>
+<td>block table</td>
+<td>radix tree</td>
+</tr>
+<tr>
+<td>前缀复用</td>
+<td>块级哈希</td>
+<td>token 级树匹配</td>
+</tr>
+<tr>
+<td>共享</td>
+<td>引用计数 + COW</td>
+<td>引用计数 + 节点共享</td>
+</tr>
+<tr>
+<td>驱逐</td>
+<td>块 LRU</td>
+<td>叶子 LRU</td>
+</tr>
+<tr>
+<td>默认调度</td>
+<td>FCFS</td>
+<td>FCFS（可切换 LPM 等缓存感知策略）</td>
+</tr>
+<tr>
+<td>前缀感知调度</td>
+<td>否（缓存命中仍生效）</td>
+<td>默认否；开启 LPM/DFS-weight 后是</td>
+</tr>
+<tr>
+<td>Chunked prefill</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>抢占</td>
+<td>recompute 为主</td>
+<td>recompute + 缓存复用</td>
+</tr>
+<tr>
+<td>CPU/GPU 重叠</td>
+<td>V1 异步架构</td>
+<td>overlap scheduler</td>
+</tr>
+<tr>
+<td>结构化输出</td>
+<td>xgrammar/guidance（outlines 视版本）</td>
+<td>XGrammar + 压缩 FSM + jump-forward</td>
+</tr>
+<tr>
+<td>投机解码</td>
+<td>draft/ngram/EAGLE/MTP</td>
+<td>EAGLE/draft/MTP 等</td>
+</tr>
+<tr>
+<td>多模态</td>
+<td>覆盖广</td>
+<td>主流模型覆盖</td>
+</tr>
+<tr>
+<td>量化</td>
+<td>覆盖广</td>
+<td>主流格式</td>
+</tr>
+<tr>
+<td>PD 分离</td>
+<td>支持</td>
+<td>支持，大规模经验</td>
+</tr>
+<tr>
+<td>分层缓存</td>
+<td>connector/offload 生态</td>
+<td>HiCache</td>
+</tr>
+<tr>
+<td>路由</td>
+<td>外部</td>
+<td>自带 cache-aware router</td>
+</tr>
+<tr>
+<td>生态</td>
+<td>大而全</td>
+<td>性能/场景导向</td>
+</tr>
+<tr>
+<td>典型强项</td>
+<td>通用 serving、长尾模型、硬件后端</td>
+<td>前缀密集、Agent/RAG、结构化输出、大规模 MoE</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="59">5.9 什么时候不用纠结<a class="headerlink" href="#59" title="Permanent link">&para;</a></h2>
+<p>不是所有场景都值得做“vLLM vs SGLang”的深度对比。以下情况，差异可能小到可以忽略：</p>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>为什么不用纠结</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>前缀共享低于 10%</td>
+<td>RadixAttention 的细粒度复用没有用武之地，两者都接近“无缓存”</td>
+</tr>
+<tr>
+<td>输出很长（如 2000+ token）</td>
+<td>decode 占主导，前缀缓存节省的 prefill 被稀释</td>
+</tr>
+<tr>
+<td>缓存容量充足、请求基本串行</td>
+<td>块级缓存也能命中，LPM 的排序影响小</td>
+</tr>
+<tr>
+<td>单请求、batch=1 的低延迟场景</td>
+<td>瓶颈在 kernel/backend 与模型本身，调度差异很小</td>
+</tr>
+<tr>
+<td>流量很小（每天几百请求）</td>
+<td>省下的几毫秒不值得增加运维复杂度</td>
+</tr>
+<tr>
+<td>目标模型/硬件只被一个引擎支持</td>
+<td>没得选，先解决“能不能跑”</td>
+</tr>
+<tr>
+<td>团队只熟悉一个引擎</td>
+<td>运维、排错、升级成本通常高于 10% 的性能差异</td>
+</tr>
+<tr>
+<td>已有稳定生产系统</td>
+<td>迁移风险 &gt; 潜在收益，除非瓶颈明确</td>
+</tr>
+</tbody>
+</table>
+<p>如果以上都不符合，再回到 5.5 的公式，估算：</p>
+<ol>
+<li>前缀命中能省多少 prefill；</li>
+<li>prefill 占 TTFT/E2E 的比例；</li>
+<li>缓存压力是否会导致驱逐；</li>
+<li>你的 SLO 更关注 TTFT 还是 TPOT。</li>
+</ol>
+<p><strong>先算账，再选型；不要因为“token 级”三个字就迁移。</strong></p>
+<hr />
+<h2 id="510">5.10 常见误解澄清<a class="headerlink" href="#510" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>“SGLang 有 RadixAttention，所以一定比 vLLM 快。”</strong><br />
+   错。前缀完全不共享、输出很长、缓存压力小时，RadixAttention 的树维护甚至可能是负收益。性能取决于 workload。</p>
+</li>
+<li>
+<p><strong>“vLLM 的前缀缓存是块级的，所以基本没用。”</strong><br />
+   错。块级缓存对长前缀、块对齐的负载命中率很高；块边界损失通常很小（块越小越小，16/64 依版本而定）。</p>
+</li>
+<li>
+<p><strong>“SGLang 不用分页，所以没有碎片。”</strong><br />
+   不准确。SGLang 底层同样要按页或槽位管理 KV；当 <code>page_size=1</code> 时确实没有块内碎片，但仍有树节点元数据开销。它可以配置更大的 <code>page_size</code>，此时也会出现页内碎片。</p>
+</li>
+<li>
+<p><strong>“vLLM 是 FCFS，所以完全不考虑缓存。”</strong><br />
+   错。vLLM 会做前缀缓存命中，只是 waiting 队列不按命中长度重排。</p>
+</li>
+<li>
+<p><strong>“某个 benchmark 说 A 快 5 倍，所以 A 全面更好。”</strong><br />
+   错。benchmark 的模型、输入输出长度、并发、前缀分布、版本、硬件都会影响结论。第 7 章专门讲这个。</p>
+</li>
+<li>
+<p><strong>“两个引擎只能二选一。”</strong><br />
+   错。可以用网关路由：前缀密集/结构化请求走 SGLang，通用/长尾模型走 vLLM；也可以在 PD 分离中混用不同实现（需接口适配）。</p>
+</li>
+</ol>
+<hr />
+<h2 id="511">5.11 本章小结<a class="headerlink" href="#511" title="Permanent link">&para;</a></h2>
+<ul>
+<li>vLLM：块级分页 + 块哈希前缀缓存 + FCFS/token budget；优势是通用、简单、kernel 友好。</li>
+<li>SGLang：token 级基数树索引 + 底层分页/槽位池 + 默认 FCFS（可选 LPM/DFS-weight 等缓存感知调度）+ overlap；优势是细粒度前缀复用、前缀密集负载、结构化输出。</li>
+<li>两者都支持 continuous batching、chunked prefill、CUDA Graph、投机解码、并行与 PD 分离；差异在数据结构、可选调度策略与工程实现。</li>
+<li>差异是否重要，取决于共享前缀比例、对齐、分支数、缓存压力、输出长度、SLO。</li>
+<li>选型不要背结论，要用自己的 workload 做对照实验（第 7、8 章）。</li>
+</ul>
+<blockquote>
+<p><strong>用大白话再说一遍</strong>：vLLM 像固定大小的收纳盒，整齐、通用、好管理；SGLang 像按搭配挂衣杆，相同前缀共享得细、找衣服快，但树枝要维护。衣服（请求）搭配越相似、共享越多，挂衣杆越有优势；如果每件衣服都完全不一样，收纳盒反而更省心。</p>
+</blockquote>
+<hr />
+<h2 id="_1">思考题<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<ol>
+<li>共享前缀 2005 token、block_size=16 时，vLLM 与 SGLang 各能复用多少 token？如果共享前缀是 2016 token，结论会变吗？</li>
+<li>为什么 vLLM 的块级 COW 在“大量短分支”场景下比 SGLang 的节点共享更贵？请从复制粒度角度解释。</li>
+<li>LPM 在什么条件下会提高吞吐，却在什么条件下会伤害 P99 TTFT？请构造两个流量场景。</li>
+<li>用第 5.5 节的公式估算：<span class="arithmatex">\(L_p=8000\)</span>、<span class="arithmatex">\(L_h=7000\)</span>、<span class="arithmatex">\(L_o=50\)</span>、<span class="arithmatex">\(c_p=0.008\)</span> ms/token、<span class="arithmatex">\(c_d=0.04\)</span> ms/token 时，前缀缓存对 TTFT 和 E2E 的节省比例。</li>
+<li>如果两个引擎都支持 chunked prefill，为什么 SGLang 的 LPM 与 chunk 切分组合会更复杂？需要额外考虑哪些约束？</li>
+<li>“vLLM 的 FCFS 更公平”是否绝对？在什么情况下 FCFS 也会造成不公平？</li>
+<li>设计一个实验，能够分离“RadixAttention 的细粒度复用”与“LPM 的调度排序”各自的贡献。提示：控制前缀对齐与到达顺序。</li>
+<li>你认为未来两个引擎会继续分化还是收敛？请从 KV 数据结构、调度策略、生态三个角度论证。</li>
+</ol>
+<blockquote>
+<p>参考答案与提示见<a href="../appendix-b-exercises/">附录 B</a>。</p>
+</blockquote>
+<hr />
+<blockquote>
+<p><strong>继续阅读</strong>：<a href="../06-features-ecosystem/">第 6 章 功能、模型与生态对比 →</a></p>
+</blockquote>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../04-sglang/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../06-features-ecosystem/" class="md-footer__link md-footer__link--next" aria-label="下一页: 第 6 章 功能、模型与生态对比">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                第 6 章 功能、模型与生态对比
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      © 2026 ShiZiMiao · 文档 CC BY 4.0 · 代码 MIT · 版本与性能结论请以官方文档和自测为准
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

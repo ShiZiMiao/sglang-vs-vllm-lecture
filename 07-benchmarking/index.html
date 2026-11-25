@@ -1,0 +1,2707 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="面向人工智能专业学生的 LLM 推理系统课程讲义，从 PagedAttention 到 RadixAttention，从原理到压测与选型。">
+      
+      
+        <meta name="author" content="LLM Inference Course">
+      
+      
+        <link rel="canonical" href="https://shizimiao.github.io/sglang-vs-vllm-lecture/07-benchmarking/">
+      
+      
+        <link rel="prev" href="../06-features-ecosystem/">
+      
+      
+        <link rel="next" href="../08-hands-on/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>第 7 章 性能评测：如何科学地比较 vLLM 与 SGLang - LLM 推理系统：SGLang 与 vLLM 对比讲义</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#7-vllm-sglang" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="LLM 推理系统：SGLang 与 vLLM 对比讲义" class="md-header__button md-logo" aria-label="LLM 推理系统：SGLang 与 vLLM 对比讲义" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            LLM 推理系统：SGLang 与 vLLM 对比讲义
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              第 7 章 性能评测：如何科学地比较 vLLM 与 SGLang
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到深色模式"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="切换到深色模式" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到浅色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换到浅色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ShiZiMiao/sglang-vs-vllm-lecture" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ShiZiMiao/sglang-vs-vllm-lecture
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="LLM 推理系统：SGLang 与 vLLM 对比讲义" class="md-nav__button md-logo" aria-label="LLM 推理系统：SGLang 与 vLLM 对比讲义" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    LLM 推理系统：SGLang 与 vLLM 对比讲义
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ShiZiMiao/sglang-vs-vllm-lecture" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ShiZiMiao/sglang-vs-vllm-lecture
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    课程首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开始之前
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    开始之前
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 0 章 预备知识：从“文字接龙”到 GPU 服务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第一部分 基础
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第一部分 基础
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-foundations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 1 章 从一次文本生成到推理服务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-engine-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 2 章 推理引擎的通用架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第二部分 两个引擎
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第二部分 两个引擎
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-vllm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-sglang/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第三部分 对比与实践
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第三部分 对比与实践
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-mechanism-comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-features-ecosystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 6 章 功能、模型与生态对比
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 7 章 性能评测：如何科学地比较 vLLM 与 SGLang
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 7 章 性能评测：如何科学地比较 vLLM 与 SGLang
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#70" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.0 先搞懂三个词
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.0 先搞懂三个词">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#701-workload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.0.1 Workload：你测的到底是什么流量
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#702" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.0.2 分位数：为什么不能只看平均值
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#703" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.0.3 开环与闭环：两种压测方式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#704" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.0.4 冷缓存与热缓存
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#71-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 为什么推理引擎的 benchmark 特别容易误导
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#72" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 指标：测什么，怎么测
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.2 指标：测什么，怎么测">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#721" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2.1 延迟指标
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#722" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2.2 吞吐指标
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#723-goodput-slo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2.3 Goodput 与 SLO
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#724" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2.4 测量实现
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#73-workload-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Workload 建模：benchmark 的灵魂
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.3 Workload 建模：benchmark 的灵魂">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#731" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3.1 四个关键维度
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#732" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3.2 常见数据集
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#733-closed-loop-vs-open-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3.3 Closed-loop vs Open-loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#734" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3.4 前缀共享的构造
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#74" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 官方压测工具
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.4 官方压测工具">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#741-vllm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4.1 vLLM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#742-sglang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4.2 SGLang
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#743" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4.3 第三方工具
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#75" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5 公平比较清单
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#76-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.6 怎么读官方 benchmark
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#77" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.7 典型定性结论（以及为什么）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#78" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8 一个可复现的对照实验
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.8 一个可复现的对照实验">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#781" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.1 实验目标
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#782" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.2 变量
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#783-workload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.3 workload 构造
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#784" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.4 步骤
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#785" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.5 结果记录模板
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#786" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.6 预期与解释
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#79" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.9 结果呈现与统计
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#710" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.10 常见误区
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#711" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.11 本章小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-hands-on/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 8 章 动手实践：启动、调用、压测与调参
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第四部分 深入与选型
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第四部分 深入与选型
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-source-code-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 9 章 源码地图：一次请求在两个引擎中的调用链
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../10-selection-and-future/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 10 章 选型、演进与前沿
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    附录
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-a-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 A 术语表
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-b-exercises/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 B 习题参考答案与实验评分标准
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-c-references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 C 参考资料
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#70" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.0 先搞懂三个词
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.0 先搞懂三个词">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#701-workload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.0.1 Workload：你测的到底是什么流量
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#702" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.0.2 分位数：为什么不能只看平均值
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#703" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.0.3 开环与闭环：两种压测方式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#704" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.0.4 冷缓存与热缓存
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#71-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 为什么推理引擎的 benchmark 特别容易误导
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#72" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 指标：测什么，怎么测
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.2 指标：测什么，怎么测">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#721" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2.1 延迟指标
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#722" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2.2 吞吐指标
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#723-goodput-slo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2.3 Goodput 与 SLO
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#724" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2.4 测量实现
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#73-workload-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Workload 建模：benchmark 的灵魂
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.3 Workload 建模：benchmark 的灵魂">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#731" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3.1 四个关键维度
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#732" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3.2 常见数据集
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#733-closed-loop-vs-open-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3.3 Closed-loop vs Open-loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#734" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3.4 前缀共享的构造
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#74" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 官方压测工具
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.4 官方压测工具">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#741-vllm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4.1 vLLM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#742-sglang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4.2 SGLang
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#743" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4.3 第三方工具
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#75" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5 公平比较清单
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#76-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.6 怎么读官方 benchmark
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#77" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.7 典型定性结论（以及为什么）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#78" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8 一个可复现的对照实验
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.8 一个可复现的对照实验">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#781" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.1 实验目标
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#782" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.2 变量
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#783-workload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.3 workload 构造
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#784" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.4 步骤
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#785" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.5 结果记录模板
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#786" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8.6 预期与解释
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#79" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.9 结果呈现与统计
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#710" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.10 常见误区
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#711" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.11 本章小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="7-vllm-sglang">第 7 章 性能评测：如何科学地比较 vLLM 与 SGLang<a class="headerlink" href="#7-vllm-sglang" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>本章目标</strong>：建立“不被 benchmark 数字忽悠”的能力。你将学会定义 workload、选择指标、控制变量、使用两家官方压测工具，并设计一个可复现的对照实验。</p>
+<p><strong>先修知识</strong>：第 1 章的 TTFT/TPOT/吞吐/goodput、第 5 章的“差异何时重要”。本章会用到 P50/P99，忘了可以回第 0 章 0.5.3。</p>
+<p><strong>一句话概括</strong>：benchmark 不是“跑一条命令看谁快”，而是“在明确 workload 和 SLO 下，控制变量、重复测量、看分位数”。</p>
+<p><strong>给零基础同学</strong>：本章公式不多，重点是“别被数字骗”。先看 7.0 的三个词，再看 7.5 的公平比较清单；实验部分可以照着 7.8 做。</p>
+</blockquote>
+<hr />
+<h2 id="70">7.0 先搞懂三个词<a class="headerlink" href="#70" title="Permanent link">&para;</a></h2>
+<h3 id="701-workload">7.0.1 Workload：你测的到底是什么流量<a class="headerlink" href="#701-workload" title="Permanent link">&para;</a></h3>
+<p><strong>Workload（工作负载）</strong> 是你压测时模拟的请求形态，至少包括：</p>
+<ul>
+<li>输入长度分布（prompt 多长）；</li>
+<li>输出长度分布（回答多长）；</li>
+<li>前缀共享比例（多少 token 是重复的）；</li>
+<li>到达模式（均匀到达、突发、固定并发）；</li>
+<li>请求类型（聊天、RAG、JSON、代码、多模态）。</li>
+</ul>
+<p>类比：测餐厅出餐速度，你要说明“客人点的是快餐还是宴席、同时来几桌、有没有提前备菜”。只报“每小时出 100 道菜”没有意义。</p>
+<h3 id="702">7.0.2 分位数：为什么不能只看平均值<a class="headerlink" href="#702" title="Permanent link">&para;</a></h3>
+<p>假设 100 个请求，99 个都在 100 ms 内完成，1 个卡了 10 秒：</p>
+<ul>
+<li>平均值 = (99×100 ms + 10000 ms) / 100 ≈ 199 ms，看起来还行；</li>
+<li>P50 = 100 ms，大多数人的体验；</li>
+<li>P99 表示“99% 的请求不超过它”。按最近秩计算，P99 仍然是 100 ms；那个 10s 的请求属于最慢的 1%，要看 <strong>P99.9</strong> 或<strong>最大值</strong>才能看到；</li>
+<li>所以 P99 不是“最慢请求”，也不是“最慢 1% 的平均值”，而是一个分位阈值。</li>
+</ul>
+<p><strong>P50</strong> 代表“典型用户”，<strong>P99</strong> 代表尾延迟的边界。生产系统通常同时看两者；如果极端尾部很重要，再加 P99.9 和最大值。不同工具的插值算法可能让 P99 略有差异，报告时要说明口径。</p>
+<h3 id="703">7.0.3 开环与闭环：两种压测方式<a class="headerlink" href="#703" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>怎么发请求</th>
+<th>类比</th>
+<th>适合看什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>闭环（closed-loop）</strong></td>
+<td>固定 N 个客户端，收到响应后再发下一个</td>
+<td>固定 N 桌客人，吃完才换下一桌</td>
+<td>最大吞吐、吞吐-延迟曲线</td>
+</tr>
+<tr>
+<td><strong>开环（open-loop）</strong></td>
+<td>按固定速率（如 10 req/s）到达，不管系统忙不忙</td>
+<td>客人按门铃进来，不管店里有没有空位</td>
+<td>真实排队、P99、SLO 达标率</td>
+</tr>
+</tbody>
+</table>
+<p>闭环容易“客户端自己限速”，掩盖排队；开环更接近真实用户，但需要控制好到达率。两家压测工具的 <code>--request-rate</code> 只控制“发出请求的节奏”：具体数值表示按该速率开环发送；<code>inf</code> 表示所有请求在 t=0 一次性发出，这是<strong>开环突发</strong>，不是闭环。<code>--max-concurrency</code> 只是限制同时在飞的请求数，不会让客户端“收到响应再发下一个”；严格的闭环需要固定客户端数、收到响应后再发下一个的压测器（或自研脚本）。</p>
+<h3 id="704">7.0.4 冷缓存与热缓存<a class="headerlink" href="#704" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>冷缓存</strong>：服务刚重启，前缀缓存为空，第一条请求最慢；</li>
+<li><strong>热缓存</strong>：缓存已经填充，后续请求可以命中。</li>
+</ul>
+<p>比较两个引擎时，要么都冷、要么都热，不能一个热身一个不热身。测量前重启服务或显式清缓存，并记录 cache hit。</p>
+<hr />
+<h2 id="71-benchmark">7.1 为什么推理引擎的 benchmark 特别容易误导<a class="headerlink" href="#71-benchmark" title="Permanent link">&para;</a></h2>
+<p>同一对引擎，在不同人手里可以测出完全相反的结论。常见原因：</p>
+<ol>
+<li><strong>workload 不同</strong>：输入/输出长度、前缀共享比例、到达模式、并发数，都会改变瓶颈位置。</li>
+<li><strong>硬件不同</strong>：H100 vs A100 vs L40S，NVLink 有无，PCIe 代数，都会影响 TP/PD 的结论。</li>
+<li><strong>版本不同</strong>：两个项目每周都在合并 PR；一个 flag 的默认值变化就可能带来 20% 差异。</li>
+<li><strong>调参不同</strong>：<code>max_num_seqs</code>、chunked prefill 大小、CUDA Graph、量化、attention backend，都会影响结果。</li>
+<li><strong>缓存状态不同</strong>：冷缓存 vs 热缓存，前缀缓存命中率可能从 0 到 90%。</li>
+<li><strong>客户端瓶颈</strong>：压测机的 CPU/网络先饱和，测出来的“引擎延迟”其实是客户端延迟。</li>
+<li><strong>指标口径不同</strong>：平均 TTFT vs P99 TTFT；输出 token/s vs 总 token/s；是否包含排队。</li>
+<li><strong>选择性报告</strong>：只报告对自己有利的并发点、模型或长度。</li>
+</ol>
+<p>因此，看到“A 比 B 快 N 倍”时，第一反应不应该是相信或否定，而是问：<strong>在什么条件下、用什么口径、测的是什么 workload？</strong></p>
+<hr />
+<h2 id="72">7.2 指标：测什么，怎么测<a class="headerlink" href="#72" title="Permanent link">&para;</a></h2>
+<h3 id="721">7.2.1 延迟指标<a class="headerlink" href="#721" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>定义</th>
+<th>测量位置</th>
+<th>注意事项</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>TTFT</strong></td>
+<td>请求发出 → 第一个输出 token</td>
+<td>客户端流式时间戳</td>
+<td>包含网络与排队；服务端指标通常更小</td>
+</tr>
+<tr>
+<td><strong>TPOT</strong></td>
+<td>(E2E - TTFT) / (输出 token 数 - 1)</td>
+<td>客户端/服务端</td>
+<td>平均值会掩盖长尾</td>
+</tr>
+<tr>
+<td><strong>ITL</strong></td>
+<td>相邻 token 的时间间隔</td>
+<td>客户端流式时间戳</td>
+<td>关注 P50/P90/P99，不只看均值</td>
+</tr>
+<tr>
+<td><strong>E2E</strong></td>
+<td>请求发出 → 最后一个 token</td>
+<td>客户端</td>
+<td>与输出长度强相关</td>
+</tr>
+</tbody>
+</table>
+<p><strong>服务端 vs 客户端</strong>：</p>
+<ul>
+<li>服务端指标（引擎自己上报）排除了网络与客户端处理，适合定位引擎内部瓶颈；</li>
+<li>客户端指标（压测工具测）才是用户真实体验；</li>
+<li>两者都要报，且要说明差异来源（网络、代理、SSE 解析）。</li>
+</ul>
+<h3 id="722">7.2.2 吞吐指标<a class="headerlink" href="#722" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>输出 token/s</strong>：最常用，但受输出长度影响；</li>
+<li><strong>总 token/s</strong>：包含 prompt，适合 prefill 重的负载；</li>
+<li><strong>请求/s</strong>：适合固定长度的业务；</li>
+<li><strong>每 GPU token/s</strong>：多卡时用于比较效率；</li>
+<li><strong>每美元 token/s</strong>：TCO（总拥有成本）视角，生产决策更重要。</li>
+</ul>
+<h3 id="723-goodput-slo">7.2.3 Goodput 与 SLO<a class="headerlink" href="#723-goodput-slo" title="Permanent link">&para;</a></h3>
+<p>定义 SLO，例如：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>TTFT P99 &lt; 800 ms
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>TPOT P99 &lt; 80 ms
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>错误率 &lt; 0.1%
+</code></pre></div>
+<p><strong>Goodput</strong> = 单位时间内满足上述条件的请求数（或 token 数）。</p>
+<p>为什么重要：一个系统在并发 256 时吞吐很高，但 P99 TTFT 已经 5 秒；另一个系统并发 128 时吞吐略低，但 P99 在 SLO 内。对业务来说，后者才有价值。</p>
+<h3 id="724">7.2.4 测量实现<a class="headerlink" href="#724" title="Permanent link">&para;</a></h3>
+<p>流式请求的客户端伪代码：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">first</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">last</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">chunks</span> <span class="o">=</span> <span class="mi">0</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">stream</span><span class="p">:</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="k">if</span> <span class="n">first</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        <span class="n">first</span> <span class="o">=</span> <span class="n">now</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        <span class="n">ttft</span> <span class="o">=</span> <span class="n">first</span> <span class="o">-</span> <span class="n">start</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>        <span class="n">itls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">now</span> <span class="o">-</span> <span class="n">last</span><span class="p">)</span>   <span class="c1"># 第一个 token 之后才开始算 ITL</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">last</span> <span class="o">=</span> <span class="n">now</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">chunks</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="n">e2e</span> <span class="o">=</span> <span class="n">last</span> <span class="o">-</span> <span class="n">start</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="n">tpot_approx</span> <span class="o">=</span> <span class="p">(</span><span class="n">e2e</span> <span class="o">-</span> <span class="n">ttft</span><span class="p">)</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">chunks</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># 近似：假设 1 chunk = 1 token</span>
+</code></pre></div>
+<p>注意 <code>last</code> 必须在循环前初始化；并且第一个 token 只用于计算 TTFT，不产生 ITL。很多手写脚本会在这里写出 <code>now - last</code> 的未定义变量错误，或者把“请求发出到第一个 token”误算进 ITL。上面的 <code>tpot_approx</code> 只在“一个 chunk 正好一个 token”时准确；如果 chunk 会合并多个 token，应以响应的 <code>usage.completion_tokens</code> 为准重新计算。</p>
+<p>注意：</p>
+<ul>
+<li>记录的是<strong>chunk 到达时间</strong>，一个 chunk 可能包含多个 token；如果服务端按 token 流式返回，chunk 数≈token 数；否则需要从 usage 或文本估算。</li>
+<li>客户端要避免同步日志/JSON 解析阻塞事件循环。</li>
+<li>多进程压测，避免 GIL（Python 全局解释器锁）成为瓶颈。</li>
+</ul>
+<hr />
+<h2 id="73-workload-benchmark">7.3 Workload 建模：benchmark 的灵魂<a class="headerlink" href="#73-workload-benchmark" title="Permanent link">&para;</a></h2>
+<h3 id="731">7.3.1 四个关键维度<a class="headerlink" href="#731" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>输入长度分布</strong>：固定长度还是长尾分布？是否有超长 prompt？</li>
+<li><strong>输出长度分布</strong>：短输出（分类/JSON）还是长输出（创作/代码）？</li>
+<li><strong>前缀共享</strong>：system prompt、few-shot、多轮历史、RAG 文档的共享比例；</li>
+<li><strong>到达模式</strong>：固定并发（closed-loop）还是泊松到达（open-loop）？是否有突发？</li>
+</ol>
+<h3 id="732">7.3.2 常见数据集<a class="headerlink" href="#732" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>数据集</th>
+<th>特点</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ShareGPT</td>
+<td>真实多轮对话，长度分布长尾</td>
+<td>通用对话</td>
+</tr>
+<tr>
+<td>Alpaca</td>
+<td>指令数据，较短</td>
+<td>指令跟随</td>
+</tr>
+<tr>
+<td>GSM8K</td>
+<td>数学题，输出中等</td>
+<td>推理负载</td>
+</tr>
+<tr>
+<td>随机 token</td>
+<td>可控长度，无前缀共享</td>
+<td>基线/压力测试</td>
+</tr>
+<tr>
+<td>自定义</td>
+<td>复刻业务分布</td>
+<td>生产选型</td>
+</tr>
+</tbody>
+</table>
+<p><strong>重要</strong>：ShareGPT 的对话天然有前缀共享（同一会话多轮），会放大 RadixAttention 的优势；如果你用“每条请求都独立”的随机 prompt，结论可能完全不同。</p>
+<h3 id="733-closed-loop-vs-open-loop">7.3.3 Closed-loop vs Open-loop<a class="headerlink" href="#733-closed-loop-vs-open-loop" title="Permanent link">&para;</a></h3>
+<p><strong>Closed-loop（固定并发）</strong>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>N 个客户端，每个发请求 → 等响应 → 再发下一个
+</code></pre></div>
+<ul>
+<li>衡量“在 N 并发下，系统能跑多快”；</li>
+<li>不模拟真实到达过程，排队延迟被“客户端等待”吸收；</li>
+<li>适合画 throughput-latency 曲线。</li>
+</ul>
+<p><strong>Open-loop（固定到达率）</strong>：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>按泊松过程，每秒 λ 个请求到达，不管系统是否忙
+</code></pre></div>
+<ul>
+<li>衡量“在真实到达率下，SLO 是否达标”；</li>
+<li>能暴露排队、尾延迟、过载；</li>
+<li>更适合生产容量规划。</li>
+</ul>
+<p>两家压测工具都支持 <code>--request-rate</code>：具体数值是 open-loop 定速到达；<code>inf</code> 是 t=0 全部发出的 open-loop 突发（官方帮助原文是 “all the requests are sent at time 0”），不是 closed-loop。要模拟固定并发、收到响应再发下一个，需要固定客户端数的闭环压测器。</p>
+<h3 id="734">7.3.4 前缀共享的构造<a class="headerlink" href="#734" title="Permanent link">&para;</a></h3>
+<p>要比较 RadixAttention 与块级前缀缓存，必须显式控制共享：</p>
+<ul>
+<li><strong>共享比例</strong>：0%、50%、90% 的 prompt token 来自共享前缀；</li>
+<li><strong>对齐</strong>：共享前缀长度取块大小的倍数（16/64，视版本）vs 非倍数；</li>
+<li><strong>分支</strong>：所有请求共享同一前缀 vs 树状多分支；</li>
+<li><strong>缓存压力</strong>：共享前缀总量接近/超过 KV 池容量，观察驱逐行为。</li>
+</ul>
+<p>只在“0% 共享”的 workload 上比较，会低估 SGLang 的强项；只在“90% 共享、完全对齐”的 workload 上比较，会高估其普适性。</p>
+<hr />
+<h2 id="74">7.4 官方压测工具<a class="headerlink" href="#74" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>以下命令与参数于 2026 年 11 月核对；两个项目的 bench CLI 仍在演进，执行前先看 <code>--help</code>。</p>
+</blockquote>
+<h3 id="741-vllm">7.4.1 vLLM<a class="headerlink" href="#741-vllm" title="Permanent link">&para;</a></h3>
+<p>现代 vLLM 提供 <code>vllm bench</code> 子命令（旧版是 <code>benchmarks/benchmark_serving.py</code>；官方说明见 <a href="https://docs.vllm.ai/en/v0.34.0/benchmarking/">Benchmarking</a>）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># 在线服务压测（OpenAI 兼容端点）</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>vllm<span class="w"> </span>bench<span class="w"> </span>serve<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--model<span class="w"> </span>Qwen/Qwen2.5-7B-Instruct<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--dataset-name<span class="w"> </span>sharegpt<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span>--dataset-path<span class="w"> </span>./ShareGPT_V3_unfiltered_cleaned_split.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span>--num-prompts<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span>--request-rate<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span>--max-concurrency<span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span>--percentile-metrics<span class="w"> </span>ttft,tpot,itl,e2el<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span>--metric-percentiles<span class="w"> </span><span class="m">50</span>,90,99<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span>--save-result
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 离线吞吐</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>vllm<span class="w"> </span>bench<span class="w"> </span>throughput<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>--model<span class="w"> </span>Qwen/Qwen2.5-7B-Instruct<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span>--input-len<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span>--output-len<span class="w"> </span><span class="m">256</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span>--num-prompts<span class="w"> </span><span class="m">1000</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 固定 batch 的延迟</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>vllm<span class="w"> </span>bench<span class="w"> </span>latency<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--model<span class="w"> </span>Qwen/Qwen2.5-7B-Instruct<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span>--input-len<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span>--output-len<span class="w"> </span><span class="m">128</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span>--batch-size<span class="w"> </span><span class="m">1</span>
+</code></pre></div>
+<p>常用参数：</p>
+<ul>
+<li><code>--request-rate</code>：请求/秒；<code>inf</code> 表示尽可能快；</li>
+<li><code>--max-concurrency</code>：最大并发；</li>
+<li><code>--num-prompts</code>：总请求数；</li>
+<li><code>--dataset-name random</code>：随机长度；</li>
+<li><code>--random-input-len</code> / <code>--random-output-len</code>：固定长度；</li>
+<li><code>--percentile-metrics</code>：要报告的指标；</li>
+<li><code>--save-result</code>：保存 JSON，便于对比。</li>
+</ul>
+<p>以 <code>vllm bench serve --help</code> 为准，版本间参数可能变化。</p>
+<h3 id="742-sglang">7.4.2 SGLang<a class="headerlink" href="#742-sglang" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 在线服务压测（新版入口；旧版可能是 python -m sglang.bench_serving）</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>python<span class="w"> </span>-m<span class="w"> </span>sglang.benchmark.serving<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--backend<span class="w"> </span>sglang<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span>--model<span class="w"> </span>Qwen/Qwen2.5-7B-Instruct<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span>--dataset-name<span class="w"> </span>sharegpt<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span>--dataset-path<span class="w"> </span>./ShareGPT_V3_unfiltered_cleaned_split.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span>--num-prompts<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span>--request-rate<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span>--max-concurrency<span class="w"> </span><span class="m">64</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># 离线吞吐（新版入口；旧版是 python -m sglang.bench_offline_throughput）</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>python<span class="w"> </span>-m<span class="w"> </span>sglang.benchmark.offline_throughput<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span>--model-path<span class="w"> </span>Qwen/Qwen2.5-7B-Instruct<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span>--num-prompts<span class="w"> </span><span class="m">1000</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># 单 batch 延迟（新版入口；旧版是 python -m sglang.bench_one_batch）</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>python<span class="w"> </span>-m<span class="w"> </span>sglang.benchmark.one_batch<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span>--model-path<span class="w"> </span>Qwen/Qwen2.5-7B-Instruct<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span>--batch-size<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span>--input-len<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span>--output-len<span class="w"> </span><span class="m">128</span>
+</code></pre></div>
+<p>SGLang 的 <code>benchmark.serving</code> 还支持 <code>--dataset-name random</code>、<code>--random-input-len</code>、<code>--random-output-len</code> 等参数（以版本为准；官方说明见 <a href="https://docs.sglang.io/docs/developer_guide/benchmark_and_profiling">Benchmark and Profiling</a>）。缓存清理在不同版本中可能是 <code>--flush-cache</code> 之类的选项，也可能没有；如果没有，就在两次测量之间重启服务，或让每条预热请求使用唯一前缀，避免“热缓存”污染对比。</p>
+<h3 id="743">7.4.3 第三方工具<a class="headerlink" href="#743" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>NVIDIA genai-perf</strong>：支持 OpenAI 兼容端点，指标齐全；</li>
+<li><strong>llmperf</strong>：Ray 生态的压测工具；</li>
+<li><strong>locust / k6</strong>：通用 HTTP 压测，适合自定义协议；</li>
+<li><strong>自研脚本</strong>：最灵活，但要注意客户端瓶颈与统计正确性。</li>
+</ul>
+<hr />
+<h2 id="75">7.5 公平比较清单<a class="headerlink" href="#75" title="Permanent link">&para;</a></h2>
+<p>做 A/B 对比时，至少控制表 7-1 中的变量。</p>
+<p><em>表 7-1　公平比较的控制变量清单</em></p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>必须一致/记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型</td>
+<td>同一模型、同一 revision、同一 tokenizer、同一 chat template</td>
+</tr>
+<tr>
+<td>精度</td>
+<td>同一 dtype/量化格式；若不同，需单独说明</td>
+</tr>
+<tr>
+<td>硬件</td>
+<td>同一 GPU 型号/数量/互联；同一驱动/CUDA</td>
+</tr>
+<tr>
+<td>并行</td>
+<td>同一 TP/PP/DP/EP 配置</td>
+</tr>
+<tr>
+<td>上下文</td>
+<td>同一 <code>max_model_len</code> / <code>context-length</code></td>
+</tr>
+<tr>
+<td>显存</td>
+<td>同一 <code>gpu_memory_utilization</code> / <code>mem_fraction_static</code>（或都调到不 OOM 的合理值）</td>
+</tr>
+<tr>
+<td>批参数</td>
+<td>同一 <code>max_num_seqs</code> / <code>max-running-requests</code>；chunked prefill 配置</td>
+</tr>
+<tr>
+<td>缓存</td>
+<td>都开或都关前缀缓存；测量前清空；记录 cache hit</td>
+</tr>
+<tr>
+<td>图/编译</td>
+<td>都开 CUDA Graph；记录是否用 torch.compile</td>
+</tr>
+<tr>
+<td>投机</td>
+<td>都关或都开同等配置</td>
+</tr>
+<tr>
+<td>客户端</td>
+<td>同一压测机、同一网络、足够多进程、无 CPU 饱和</td>
+</tr>
+<tr>
+<td>数据</td>
+<td>同一数据集、同一随机种子、同一长度分布</td>
+</tr>
+<tr>
+<td>版本</td>
+<td>记录两个引擎的精确版本/commit</td>
+</tr>
+<tr>
+<td>重复</td>
+<td>至少 3 次，报告 median 与 P99；丢弃 warmup</td>
+</tr>
+</tbody>
+</table>
+<p><strong>最容易犯的错</strong>：</p>
+<ul>
+<li>用 A 的“调优后配置”对比 B 的“默认配置”；</li>
+<li>一边开 prefix cache，一边没开；</li>
+<li>一边用 FP8，一边用 BF16；</li>
+<li>客户端只有 4 个进程，却测 256 并发；</li>
+<li>测完一轮不重启服务，第二轮全是热缓存。</li>
+</ul>
+<hr />
+<h2 id="76-benchmark">7.6 怎么读官方 benchmark<a class="headerlink" href="#76-benchmark" title="Permanent link">&para;</a></h2>
+<p>看到一张“vLLM vs SGLang”的图，按下面的顺序检查：</p>
+<ol>
+<li><strong>模型与硬件</strong>：是不是目标场景？TP 多少？互联是什么？</li>
+<li><strong>输入/输出长度</strong>：是固定长度还是真实分布？输出多长？</li>
+<li><strong>并发/到达率</strong>：是最大吞吐点还是某个 SLO 点？</li>
+<li><strong>指标</strong>：TTFT 还是吞吐？P50 还是 P99？是否包含排队？</li>
+<li><strong>缓存</strong>：前缀缓存开没开？workload 有多少共享前缀？</li>
+<li><strong>量化/投机</strong>：是否一边用了 FP8/EAGLE，另一边没用？</li>
+<li><strong>版本</strong>：两个引擎的版本/commit 是否同期？是否用了 nightly？</li>
+<li><strong>脚注</strong>：有没有“best of N”“tuned for X”“excluding Y”？</li>
+</ol>
+<p>一条经验：<strong>官方博客的绝对数字通常不可复现</strong>，但“在什么条件下谁擅长什么”的定性结论往往有参考价值。你要做的是在自己的 workload 上验证定性结论。</p>
+<hr />
+<h2 id="77">7.7 典型定性结论（以及为什么）<a class="headerlink" href="#77" title="Permanent link">&para;</a></h2>
+<p>以下是社区中较常见的观察，<strong>不是保证</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>常见胜者</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>多轮对话、Agent、RAG，前缀共享高</td>
+<td>SGLang</td>
+<td>RadixAttention token 级复用；开启 LPM 后可进一步减少缓存驱逐</td>
+</tr>
+<tr>
+<td>结构化 JSON/正则输出</td>
+<td>SGLang（略优）</td>
+<td>压缩 FSM + jump-forward</td>
+</tr>
+<tr>
+<td>DeepSeek-V3/R1 大规模 MoE</td>
+<td>SGLang（常见）</td>
+<td>DP attention、EP/EPLB、PD 分离案例</td>
+</tr>
+<tr>
+<td>通用多模型平台、长尾模型</td>
+<td>vLLM</td>
+<td>模型/硬件/量化覆盖广</td>
+</tr>
+<tr>
+<td>长输出创作</td>
+<td>差距缩小</td>
+<td>decode 主导，前缀收益被稀释</td>
+</tr>
+<tr>
+<td>小模型、高 QPS</td>
+<td>看实现</td>
+<td>CPU 调度开销关键；SGLang overlap 有优势，vLLM V1 也在优化</td>
+</tr>
+<tr>
+<td>单请求低延迟</td>
+<td>看 kernel/backend</td>
+<td>与引擎调度关系较小，更多取决于 attention backend 与模型</td>
+</tr>
+<tr>
+<td>离线最大吞吐</td>
+<td>看 workload</td>
+<td>两者都可能赢，取决于长度分布与缓存</td>
+</tr>
+</tbody>
+</table>
+<p><strong>解释框架</strong>：先判断瓶颈在 prefill 还是 decode，再看前缀共享是否高，最后看 CPU 开销是否显著。不要只记“谁赢”。另外，这些观察通常假设两边版本相近、都做了基本调参、缓存状态一致；如果一方用调优配置、另一方用默认配置，结论不成立。</p>
+<hr />
+<h2 id="78">7.8 一个可复现的对照实验<a class="headerlink" href="#78" title="Permanent link">&para;</a></h2>
+<h3 id="781">7.8.1 实验目标<a class="headerlink" href="#781" title="Permanent link">&para;</a></h3>
+<p>验证“前缀共享比例”对两个引擎 TTFT 与吞吐的影响。</p>
+<h3 id="782">7.8.2 变量<a class="headerlink" href="#782" title="Permanent link">&para;</a></h3>
+<ul>
+<li>自变量：共享前缀比例 <span class="arithmatex">\(r \in \{0\%, 50\%, 90\%\}\)</span>；</li>
+<li>控制变量：模型、硬件、TP、dtype、max context、并发、输入/输出长度分布、缓存开关；</li>
+<li>因变量：TTFT P50/P99、TPOT P50/P99、输出 token/s、goodput（TTFT P99 &lt; 1s）。</li>
+</ul>
+<h3 id="783-workload">7.8.3 workload 构造<a class="headerlink" href="#783-workload" title="Permanent link">&para;</a></h3>
+<ul>
+<li>总 prompt 长度 2048 token；</li>
+<li>共享前缀长度 = <span class="arithmatex">\(\text{round}(2048 \times r)\)</span>，取块大小的倍数（16/64）与非倍数各一组；</li>
+<li>每条请求的独特后缀随机生成；</li>
+<li>输出长度固定 128 token（也可加一组 512）；</li>
+<li>到达率：固定 10 req/s，持续 5 分钟；另做一组 closed-loop 最大并发。</li>
+</ul>
+<blockquote>
+<p><code>code/bench_prefix.py</code> 目前只提供 <code>shared</code>（100% 共享）和 <code>unique</code>（0% 共享）两档；要跑 50%/90%，把它的前缀构造改成“共享段 + 独有段”即可，或使用自定义数据集。</p>
+</blockquote>
+<h3 id="784">7.8.4 步骤<a class="headerlink" href="#784" title="Permanent link">&para;</a></h3>
+<ol>
+<li>启动 vLLM，记录版本、启动参数；</li>
+<li>用仓库的 <code>code/bench_prefix.py</code>（见第 8 章）生成 <code>shared</code> / <code>unique</code> 两组 workload：<code>shared</code> 每条请求拼相同长前缀，<code>unique</code> 每条请求用不同前缀。分别测冷缓存与热缓存；脚本输出 TTFT/E2E 和近似的 chunks/s，goodput 需要用 <code>--json-out</code> 的原始记录按 SLO 过滤后自己算。如果坚持用 <code>vllm bench serve</code>，要准备一个“共享前缀”的自定义数据集，否则 <code>random</code> 数据集不会产生前缀复用；</li>
+<li>启动 SGLang，记录版本、启动参数（对齐显存/批参数）；</li>
+<li>用同一个脚本跑 <code>shared</code> / <code>unique</code>，同样区分冷/热缓存；如果想观察缓存感知调度，再重启 SGLang 并加 <code>--schedule-policy lpm</code>，跑同一组 <code>shared</code> workload；</li>
+<li>每组重复 3 次，取 median，记录 P99；</li>
+<li>记录 GPU 利用率、显存、cache hit（如果引擎暴露）；</li>
+<li>交换启动顺序再跑一轮，排除机器状态影响。</li>
+</ol>
+<h3 id="785">7.8.5 结果记录模板<a class="headerlink" href="#785" title="Permanent link">&para;</a></h3>
+<p><em>表 7-2　配置记录</em></p>
+<table>
+<thead>
+<tr>
+<th>引擎</th>
+<th>版本/commit</th>
+<th>共享比例</th>
+<th>前缀是否块对齐</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vLLM</td>
+<td>...</td>
+<td>0%</td>
+<td>-</td>
+</tr>
+<tr>
+<td>vLLM</td>
+<td>...</td>
+<td>50%</td>
+<td>是 / 否</td>
+</tr>
+<tr>
+<td>vLLM</td>
+<td>...</td>
+<td>90%</td>
+<td>是 / 否</td>
+</tr>
+<tr>
+<td>SGLang</td>
+<td>...</td>
+<td>0%</td>
+<td>-</td>
+</tr>
+<tr>
+<td>SGLang</td>
+<td>...</td>
+<td>50%</td>
+<td>是 / 否</td>
+</tr>
+<tr>
+<td>SGLang</td>
+<td>...</td>
+<td>90%</td>
+<td>是 / 否</td>
+</tr>
+</tbody>
+</table>
+<p><em>表 7-3　延迟指标（ms）</em></p>
+<table>
+<thead>
+<tr>
+<th>引擎</th>
+<th>共享比例</th>
+<th>TTFT P50</th>
+<th>TTFT P99</th>
+<th>TPOT P99</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vLLM</td>
+<td>...</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>SGLang</td>
+<td>...</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><em>表 7-4　吞吐与 goodput</em></p>
+<table>
+<thead>
+<tr>
+<th>引擎</th>
+<th>共享比例</th>
+<th>输出 tok/s</th>
+<th>goodput（满足 SLO 的 req/s）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vLLM</td>
+<td>...</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>SGLang</td>
+<td>...</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="786">7.8.6 预期与解释<a class="headerlink" href="#786" title="Permanent link">&para;</a></h3>
+<ul>
+<li><span class="arithmatex">\(r=0\)</span>：两者差距应较小，SGLang 的树维护可能带来轻微开销；</li>
+<li><span class="arithmatex">\(r=50\%\)</span>：SGLang 的 token 级命中开始占优；若同时开启 LPM，排序收益更明显；非对齐场景差距更大；</li>
+<li><span class="arithmatex">\(r=90\%\)</span>：在缓存能容纳共享前缀的前提下，SGLang 的 TTFT 优势最大；但如果输出很长，E2E 差距被稀释；</li>
+<li>如果结果与预期相反，检查：缓存是否真的命中、调度是否被其他因素主导、客户端是否瓶颈、版本是否有已知问题。</li>
+</ul>
+<hr />
+<h2 id="79">7.9 结果呈现与统计<a class="headerlink" href="#79" title="Permanent link">&para;</a></h2>
+<ul>
+<li>报告 <strong>median + P90/P99</strong>，不要只报均值；</li>
+<li>报告 <strong>样本量、持续时间、warmup、重复次数</strong>；</li>
+<li>报告 <strong>错误率、超时率</strong>；</li>
+<li>画 <strong>throughput-latency 曲线</strong>，而不是单点；</li>
+<li>标注 <strong>SLO 线</strong>，报告 goodput；</li>
+<li>保存原始 JSON/CSV，便于复现；</li>
+<li>记录 <strong>GPU 时钟/温度/功耗</strong>，避免 thermal throttling（过热降频）影响；</li>
+<li>多机时记录网络拓扑与 NCCL 配置。</li>
+</ul>
+<hr />
+<h2 id="710">7.10 常见误区<a class="headerlink" href="#710" title="Permanent link">&para;</a></h2>
+<p><strong>误区 1：吞吐越高，系统越好。</strong><br />
+如果大量请求超 SLO，吞吐只是“把系统压爆后的数字”。生产看 goodput：满足 SLO 的有效吞吐。</p>
+<p><strong>误区 2：跑一次就能下结论。</strong><br />
+GPU 时钟、缓存状态、客户端负载、网络抖动都会影响结果。至少重复 3 次，报告 median 和 P99。</p>
+<p><strong>误区 3：平均值够用了。</strong><br />
+平均值会掩盖尾延迟。用户感知的“卡顿”通常在 P95/P99，不在均值。</p>
+<p><strong>误区 4：闭环压测等于真实流量。</strong><br />
+闭环中客户端会等响应，排队被“客户端节流”吸收；真实用户是按自己的节奏到达的，需要开环压测。</p>
+<p><strong>误区 5：一个热缓存、一个冷缓存，也能公平比较。</strong><br />
+缓存状态必须一致。热缓存会让前缀命中的引擎看起来快很多，但那是“热身”的功劳。</p>
+<p><strong>误区 6：只测一种输入/输出长度。</strong><br />
+不同长度分布会把瓶颈从 prefill 推到 decode，结论可能反转。至少测短、中、长三组。</p>
+<p><strong>误区 7：官方博客的数字能直接套到我的业务。</strong><br />
+官方数字是特定模型、硬件、版本、workload 下的结果。可以参考定性结论，不能直接当容量规划。</p>
+<hr />
+<h2 id="711">7.11 本章小结<a class="headerlink" href="#711" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Benchmark 的结论高度依赖 workload、硬件、版本、调参与缓存状态。</li>
+<li>指标要区分 TTFT/TPOT/ITL/E2E、均值/分位数、吞吐/goodput。</li>
+<li>用 open-loop 模拟真实到达，用 closed-loop 画吞吐-延迟曲线。</li>
+<li>前缀共享比例、对齐、分支、缓存压力，是比较两个引擎时最关键的 workload 变量。</li>
+<li>公平比较要控制模型、精度、硬件、并行、显存、批参数、缓存、客户端与版本。</li>
+<li>官方数字可参考定性结论，但必须在自己 workload 上复现。</li>
+<li>一个好的 benchmark 报告 = 可复现的配置 + 完整的分布 + 诚实的局限。</li>
+</ul>
+<blockquote>
+<p><strong>用大白话再说一遍</strong>：压测就像考试，先说明“考什么卷子”（workload），再说明“怎么监考”（闭环/开环），最后看“最好、最差、大多数人的成绩”（P50/P99），而不是只看平均分。换了卷子、换了考场、换了版本，分数就不能直接比。</p>
+</blockquote>
+<hr />
+<h2 id="_1">思考题<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<ol>
+<li>为什么 closed-loop 压测可能高估系统的 SLO 达标率？请用排队论解释。</li>
+<li>如果客户端只有 8 个进程，却要测 256 并发，会发生什么？如何判断客户端是否成为瓶颈？</li>
+<li>设计一个 workload，使得 vLLM 的块级前缀缓存命中率接近 SGLang 的 token 级命中率。关键条件是什么？</li>
+<li>为什么“输出长度从 128 增加到 2048”会缩小两个引擎的 E2E 差距，但不一定缩小 TTFT 差距？</li>
+<li>你看到一张图：SGLang 在 90% 共享前缀下 TTFT 比 vLLM 低 5 倍。请列出至少 5 个需要核查的问题。</li>
+<li>如何测量“前缀缓存命中率”？如果引擎没有直接暴露该指标，能否用 TTFT 或 prefill token 数间接估计？</li>
+<li>设计一个实验，区分“attention backend 更快”与“调度/缓存更优”对总吞吐的贡献。</li>
+<li>为什么 goodput 比 throughput 更适合作为生产选型指标？请举一个反例。</li>
+</ol>
+<blockquote>
+<p>参考答案与提示见<a href="../appendix-b-exercises/">附录 B</a>。</p>
+</blockquote>
+<hr />
+<blockquote>
+<p><strong>继续阅读</strong>：<a href="../08-hands-on/">第 8 章 动手实践：启动、调用、压测与调参 →</a></p>
+</blockquote>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../06-features-ecosystem/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 第 6 章 功能、模型与生态对比">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                第 6 章 功能、模型与生态对比
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../08-hands-on/" class="md-footer__link md-footer__link--next" aria-label="下一页: 第 8 章 动手实践：启动、调用、压测与调参">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                第 8 章 动手实践：启动、调用、压测与调参
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      © 2026 ShiZiMiao · 文档 CC BY 4.0 · 代码 MIT · 版本与性能结论请以官方文档和自测为准
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

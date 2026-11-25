@@ -1,0 +1,3164 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="面向人工智能专业学生的 LLM 推理系统课程讲义，从 PagedAttention 到 RadixAttention，从原理到压测与选型。">
+      
+      
+        <meta name="author" content="LLM Inference Course">
+      
+      
+        <link rel="canonical" href="https://shizimiao.github.io/sglang-vs-vllm-lecture/04-sglang/">
+      
+      
+        <link rel="prev" href="../03-vllm/">
+      
+      
+        <link rel="next" href="../05-mechanism-comparison/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈 - LLM 推理系统：SGLang 与 vLLM 对比讲义</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#4-sglang-radixattention" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="LLM 推理系统：SGLang 与 vLLM 对比讲义" class="md-header__button md-logo" aria-label="LLM 推理系统：SGLang 与 vLLM 对比讲义" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            LLM 推理系统：SGLang 与 vLLM 对比讲义
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到深色模式"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="切换到深色模式" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到浅色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换到浅色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ShiZiMiao/sglang-vs-vllm-lecture" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ShiZiMiao/sglang-vs-vllm-lecture
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="LLM 推理系统：SGLang 与 vLLM 对比讲义" class="md-nav__button md-logo" aria-label="LLM 推理系统：SGLang 与 vLLM 对比讲义" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    LLM 推理系统：SGLang 与 vLLM 对比讲义
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ShiZiMiao/sglang-vs-vllm-lecture" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ShiZiMiao/sglang-vs-vllm-lecture
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    课程首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开始之前
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    开始之前
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 0 章 预备知识：从“文字接龙”到 GPU 服务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第一部分 基础
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第一部分 基础
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-foundations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 1 章 从一次文本生成到推理服务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-engine-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 2 章 推理引擎的通用架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第二部分 两个引擎
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第二部分 两个引擎
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-vllm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#40-radixattention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.0 先用文件夹类比理解 RadixAttention
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#41" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 定位与历史
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 从程序原语到运行时
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.2 从程序原语到运行时">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#421" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2.1 为什么需要前端语言
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#422-srt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2.2 运行时（SRT）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#43-radixattention-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 RadixAttention：把 KV Cache 组织成前缀树
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.3 RadixAttention：把 KV Cache 组织成前缀树">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#431-radix-tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.1 基数树（Radix Tree）速览
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#432" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.2 树节点存什么
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#433-match_prefix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.3 匹配（match_prefix）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#434-insert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.4 插入（insert）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#435-evict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.5 驱逐（evict）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#436-radixattention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.6 RadixAttention 的收益从哪里来
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#437" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.7 代价与限制
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#44-lpm-dfs-weight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 缓存感知调度：LPM 与 DFS-weight
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.4 缓存感知调度：LPM 与 DFS-weight">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#441" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4.1 为什么调度要“看见”前缀
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#442-sglang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4.2 SGLang 的调度策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#443-lpm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4.3 LPM 的公平性问题
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#444-vllm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4.4 与 vLLM 的对比（预告）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#45" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 调度与执行的重叠：零开销批调度
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.5 调度与执行的重叠：零开销批调度">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#451-cpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5.1 CPU 侧开销从哪里来
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#452" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5.2 重叠调度的思路
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#453-chunked-prefill-prefilldecode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5.3 Chunked Prefill 与 Prefill/Decode 混跑
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#454-cuda-graph-attention-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5.4 CUDA Graph 与 Attention Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#46-fsm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6 结构化输出：压缩 FSM 与跳转解码
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.6 结构化输出：压缩 FSM 与跳转解码">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#461" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6.1 约束解码的基本原理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#462-sglang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6.2 SGLang 的优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#463" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6.3 使用方式
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#47-dp-attentionepeplb-pd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7 大规模并行：DP Attention、EP、EPLB 与 PD 分离
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.7 大规模并行：DP Attention、EP、EPLB 与 PD 分离">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#471-tp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7.1 张量并行（TP）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#472-dp-attention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7.2 DP Attention
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#473-eplb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7.3 专家并行与 EPLB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#474-pd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7.4 PD 分离
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#475-hicache-cpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7.5 HiCache：把缓存延伸到 CPU 和磁盘
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#48" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8 投机解码与前端生态
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.8 投机解码与前端生态">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#481" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8.1 投机解码
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#482" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8.2 缓存感知路由
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#483" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8.3 前端生态
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#49" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.9 源码导读（概念版）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#410" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.10 优势与局限
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.10 优势与局限">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优势
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        局限
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#411" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.11 常见误区
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#412" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.12 本章小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第三部分 对比与实践
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第三部分 对比与实践
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-mechanism-comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-features-ecosystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 6 章 功能、模型与生态对比
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-benchmarking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 7 章 性能评测：如何科学地比较 vLLM 与 SGLang
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-hands-on/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 8 章 动手实践：启动、调用、压测与调参
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第四部分 深入与选型
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第四部分 深入与选型
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-source-code-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 9 章 源码地图：一次请求在两个引擎中的调用链
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../10-selection-and-future/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 10 章 选型、演进与前沿
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    附录
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-a-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 A 术语表
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-b-exercises/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 B 习题参考答案与实验评分标准
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-c-references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 C 参考资料
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#40-radixattention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.0 先用文件夹类比理解 RadixAttention
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#41" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 定位与历史
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 从程序原语到运行时
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.2 从程序原语到运行时">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#421" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2.1 为什么需要前端语言
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#422-srt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2.2 运行时（SRT）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#43-radixattention-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 RadixAttention：把 KV Cache 组织成前缀树
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.3 RadixAttention：把 KV Cache 组织成前缀树">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#431-radix-tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.1 基数树（Radix Tree）速览
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#432" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.2 树节点存什么
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#433-match_prefix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.3 匹配（match_prefix）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#434-insert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.4 插入（insert）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#435-evict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.5 驱逐（evict）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#436-radixattention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.6 RadixAttention 的收益从哪里来
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#437" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3.7 代价与限制
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#44-lpm-dfs-weight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 缓存感知调度：LPM 与 DFS-weight
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.4 缓存感知调度：LPM 与 DFS-weight">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#441" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4.1 为什么调度要“看见”前缀
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#442-sglang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4.2 SGLang 的调度策略
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#443-lpm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4.3 LPM 的公平性问题
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#444-vllm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4.4 与 vLLM 的对比（预告）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#45" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 调度与执行的重叠：零开销批调度
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.5 调度与执行的重叠：零开销批调度">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#451-cpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5.1 CPU 侧开销从哪里来
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#452" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5.2 重叠调度的思路
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#453-chunked-prefill-prefilldecode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5.3 Chunked Prefill 与 Prefill/Decode 混跑
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#454-cuda-graph-attention-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5.4 CUDA Graph 与 Attention Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#46-fsm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6 结构化输出：压缩 FSM 与跳转解码
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.6 结构化输出：压缩 FSM 与跳转解码">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#461" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6.1 约束解码的基本原理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#462-sglang" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6.2 SGLang 的优化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#463" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6.3 使用方式
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#47-dp-attentionepeplb-pd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7 大规模并行：DP Attention、EP、EPLB 与 PD 分离
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.7 大规模并行：DP Attention、EP、EPLB 与 PD 分离">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#471-tp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7.1 张量并行（TP）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#472-dp-attention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7.2 DP Attention
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#473-eplb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7.3 专家并行与 EPLB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#474-pd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7.4 PD 分离
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#475-hicache-cpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7.5 HiCache：把缓存延伸到 CPU 和磁盘
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#48" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8 投机解码与前端生态
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.8 投机解码与前端生态">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#481" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8.1 投机解码
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#482" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8.2 缓存感知路由
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#483" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8.3 前端生态
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#49" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.9 源码导读（概念版）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#410" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.10 优势与局限
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.10 优势与局限">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优势
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        局限
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#411" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.11 常见误区
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#412" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.12 本章小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="4-sglang-radixattention">第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈<a class="headerlink" href="#4-sglang-radixattention" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>本章目标</strong>：理解 SGLang 的两层含义（前端语言 + 运行时）、RadixAttention 的树结构与操作、缓存感知调度，以及它在结构化输出、大规模 MoE、PD 分离上的工程取舍。</p>
+<p><strong>先修知识</strong>：<a href="../01-foundations/">第 1 章</a> 的 KV Cache、<a href="../02-engine-architecture/">第 2 章</a> 的分页思想、<a href="../03-vllm/">第 3 章</a> vLLM 的块级前缀缓存。建议先读第 3 章，才能体会“块级 vs token 级”的差别。</p>
+<p><strong>一句话概括</strong>：SGLang 把 KV Cache 的<strong>前缀索引</strong>组织成一棵“前缀树”（KV 数据本身仍在显存池中），相同前缀的请求共用树上的节点；如果开启缓存感知调度，还可以优先安排前缀命中更长的请求（默认策略是 FCFS）。</p>
+<p><strong>给零基础同学</strong>：不要被“基数树”“引用计数”吓到。本章 4.0 节会用“文件夹路径”类比，把树的匹配、分裂、共享讲清楚。</p>
+<p><strong>版本与来源</strong>：本章的默认值与源码路径按 <strong>SGLang 0.5.23</strong> 核对（2026-11-25）；参数逐项说明见 <a href="https://docs.sglang.io/docs/advanced_features/server_arguments">SGLang Server Arguments</a>。</p>
+</blockquote>
+<hr />
+<h2 id="40-radixattention">4.0 先用文件夹类比理解 RadixAttention<a class="headerlink" href="#40-radixattention" title="Permanent link">&para;</a></h2>
+<p>你电脑里的文件夹是这样的（图 4-1）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>D:\课程\
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── 讲义\
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│   ├── 第1章.md
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│   └── 第2章.md
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>└── 实验\
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    └── bench.py
+</code></pre></div>
+<p><em>图 4-1　用文件夹路径类比基数树</em></p>
+<p><code>D:\课程\讲义\</code> 这段路径被两个文件共享；<code>D:\课程\实验\</code> 是另一条分支。RadixAttention 的树也是同样的结构：</p>
+<ul>
+<li>树的根 = 盘符/根目录；</li>
+<li>每条边 = 一段 token 序列（不是单个 token），像一级文件夹；</li>
+<li>节点 = 一段共享前缀的 KV；</li>
+<li>子节点 = 在这个前缀之后分叉的不同后缀；</li>
+<li>多个请求可以共享同一条路径上的 KV；</li>
+<li>请求结束后，把它走过的路径“登记”到树里，供后续请求复用。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>文件夹</th>
+<th>RadixAttention</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>根目录</td>
+<td>树的 root</td>
+</tr>
+<tr>
+<td>一级文件夹</td>
+<td>一段 token 前缀（如 system prompt）</td>
+</tr>
+<tr>
+<td>子文件夹</td>
+<td>分叉后的后缀</td>
+</tr>
+<tr>
+<td>文件</td>
+<td>某个请求的完整 token 序列</td>
+</tr>
+<tr>
+<td>两个文件共享路径</td>
+<td>两个请求共享 KV</td>
+</tr>
+<tr>
+<td>删除空文件夹</td>
+<td>驱逐没有引用的叶子节点</td>
+</tr>
+</tbody>
+</table>
+<p>这样，多轮对话、Agent 分支、RAG 共享文档，都可以看成“走同一段文件夹路径”。Radix Cache 会复用路径上的 KV；如果进一步开启缓存感知调度（如 LPM），调度器还会尽量让“路径相同”的请求一起走，减少重复 prefill。</p>
+<hr />
+<h2 id="41">4.1 定位与历史<a class="headerlink" href="#41" title="Permanent link">&para;</a></h2>
+<p>SGLang 由 LMSYS Org（与 Vicuna、Chatbot Arena 同一社区）发起，核心论文是 2023 年预印、2024 年发表在 NeurIPS 的 <em>SGLang: Efficient Execution of Structured Language Model Programs</em>。</p>
+<p>“SGLang”其实有两层含义，初学时很容易混淆：</p>
+<ol>
+<li><strong>SGLang 前端语言</strong>：一个嵌入 Python 的 DSL（domain-specific language），用来表达带分支、选择、循环、约束的 LLM 程序；</li>
+<li><strong>SGLang Runtime（SRT）</strong>：真正执行这些程序、也接受 OpenAI API 的推理引擎。</li>
+</ol>
+<p>早期论文的主线是“用一套语言原语描述复杂 LLM 程序，再让运行时针对这些结构做优化”；后来 SRT 逐渐独立成一个通用高性能 serving 引擎，被广泛用于多轮对话、Agent、RAG、结构化输出、强化学习 rollout 和 DeepSeek 类大模型部署。</p>
+<p>SGLang 的核心洞察是：</p>
+<blockquote>
+<p>很多 LLM 应用的请求并不是彼此独立的。它们共享 system prompt、共享多轮历史、共享检索文档、共享同一棵推理树的祖先。如果推理引擎能“看见”这些共享结构，就能避免大量重复 prefill。</p>
+</blockquote>
+<p>vLLM 的 PagedAttention 主要解决“显存怎么放”；SGLang 的 RadixAttention 进一步解决“相同前缀的 KV 怎么复用”。两者不是替代关系，而是同一问题不同层次的答案。</p>
+<hr />
+<h2 id="42">4.2 从程序原语到运行时<a class="headerlink" href="#42" title="Permanent link">&para;</a></h2>
+<h3 id="421">4.2.1 为什么需要前端语言<a class="headerlink" href="#421" title="Permanent link">&para;</a></h3>
+<p>考虑一个常见的 Agent 流程：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>用户问题
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  → 模型生成“计划”
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  → 并行尝试 3 个工具调用
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  → 根据结果选择一个分支继续
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>  → 生成最终答案，并要求 JSON 格式
+</code></pre></div>
+<p>用朴素的 API 调用写，会有大量重复：</p>
+<ul>
+<li>每个分支都要把相同的 system prompt 和问题重新发一遍；</li>
+<li>分支之间共享的历史无法复用；</li>
+<li>约束（JSON Schema、正则）要单独处理；</li>
+<li>并行分支的调度依赖用户自己写线程池。</li>
+</ul>
+<p>SGLang 前端语言提供了一组原语，把这些结构显式表达出来：</p>
+<table>
+<thead>
+<tr>
+<th>原语</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sgl.gen</code></td>
+<td>生成一段文本，可带 <code>max_tokens</code>、<code>stop</code>、<code>regex</code>、<code>json_schema</code> 等约束</td>
+</tr>
+<tr>
+<td><code>sgl.select</code></td>
+<td>从多个候选里选择一个（如分类、路由）</td>
+</tr>
+<tr>
+<td><code>sgl.fork</code> / <code>sgl.join</code></td>
+<td>分叉出多个并行分支，再汇合</td>
+</tr>
+<tr>
+<td><code>sgl.system</code> / <code>sgl.user</code> / <code>sgl.assistant</code></td>
+<td>构造对话消息</td>
+</tr>
+<tr>
+<td>变量与表达式</td>
+<td>把前一步输出作为后一步输入，支持 Python 控制流</td>
+</tr>
+</tbody>
+</table>
+<p>一个最小例子：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">sglang</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sgl</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nd">@sgl</span><span class="o">.</span><span class="n">function</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">answer</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">question</span><span class="p">):</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">s</span> <span class="o">+=</span> <span class="n">sgl</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s2">"你是一个严谨的 AI 助教。"</span><span class="p">)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">s</span> <span class="o">+=</span> <span class="n">sgl</span><span class="o">.</span><span class="n">user</span><span class="p">(</span><span class="n">question</span><span class="p">)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">s</span> <span class="o">+=</span> <span class="n">sgl</span><span class="o">.</span><span class="n">assistant</span><span class="p">(</span><span class="n">sgl</span><span class="o">.</span><span class="n">gen</span><span class="p">(</span><span class="s2">"answer"</span><span class="p">,</span> <span class="n">max_tokens</span><span class="o">=</span><span class="mi">512</span><span class="p">))</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">state</span> <span class="o">=</span> <span class="n">answer</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">question</span><span class="o">=</span><span class="s2">"什么是 KV Cache？"</span><span class="p">)</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s2">"answer"</span><span class="p">])</span>
+</code></pre></div>
+<blockquote>
+<p><strong>版本提示</strong>：<code>@sgl.function</code> 这类前端 API 在 0.4 之后经历过调整，上面两段代码只用于说明“语言层表达结构”的思想，不保证在新版本逐字可运行。生产代码请以当前版本文档为准；多数用户直接用 OpenAI 兼容接口，不接触这层 DSL。</p>
+</blockquote>
+<p>分支例子（概念版）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nd">@sgl</span><span class="o">.</span><span class="n">function</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">multi_path</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">question</span><span class="p">):</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">s</span> <span class="o">+=</span> <span class="n">sgl</span><span class="o">.</span><span class="n">user</span><span class="p">(</span><span class="n">question</span><span class="p">)</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">forks</span> <span class="o">=</span> <span class="n">sgl</span><span class="o">.</span><span class="n">fork</span><span class="p">([</span><span class="s2">"用数学解释"</span><span class="p">,</span> <span class="s2">"用类比解释"</span><span class="p">,</span> <span class="s2">"用代码解释"</span><span class="p">])</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">forks</span><span class="p">:</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>        <span class="n">f</span> <span class="o">+=</span> <span class="n">sgl</span><span class="o">.</span><span class="n">assistant</span><span class="p">(</span><span class="n">sgl</span><span class="o">.</span><span class="n">gen</span><span class="p">(</span><span class="s2">"explanation"</span><span class="p">,</span> <span class="n">max_tokens</span><span class="o">=</span><span class="mi">256</span><span class="p">))</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">s</span> <span class="o">+=</span> <span class="n">sgl</span><span class="o">.</span><span class="n">assistant</span><span class="p">(</span><span class="s2">"请综合以上三种解释，给出最终答案："</span><span class="p">)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">s</span> <span class="o">+=</span> <span class="n">sgl</span><span class="o">.</span><span class="n">gen</span><span class="p">(</span><span class="s2">"final"</span><span class="p">,</span> <span class="n">max_tokens</span><span class="o">=</span><span class="mi">512</span><span class="p">)</span>
+</code></pre></div>
+<p>在运行时看来，这些 fork 出来的分支共享同一段前缀，因此可以共用 KV Cache；<code>select</code> 可以用约束解码只生成候选 token；<code>gen</code> 的 JSON Schema 可以编译成 FSM。<strong>语言层表达结构，运行时层利用结构</strong>，这是 SGLang 最初的设计哲学。</p>
+<blockquote>
+<p>今天大多数用户直接使用 OpenAI 兼容 API，不一定接触前端语言。但理解这套原语，有助于理解 SGLang 运行时为什么如此强调“前缀共享”和“结构化约束”。</p>
+</blockquote>
+<h3 id="422-srt">4.2.2 运行时（SRT）<a class="headerlink" href="#422-srt" title="Permanent link">&para;</a></h3>
+<p>SRT 是一个完整的 serving 引擎，主要组件包括：</p>
+<ul>
+<li><strong>HTTP Server</strong>：OpenAI 兼容接口、原生 <code>/generate</code> 接口；</li>
+<li><strong>TokenizerManager</strong>：tokenize、chat template、多模态输入；</li>
+<li><strong>Scheduler</strong>：调度、RadixCache 管理、批处理；</li>
+<li><strong>TP Worker</strong>：每张 GPU 一个，执行模型；</li>
+<li><strong>ModelRunner</strong>：构造输入、调用 attention backend、采样；</li>
+<li><strong>DetokenizerManager</strong>：增量 detokenize、流式输出；</li>
+<li><strong>Router</strong>（独立部署）：缓存感知的负载均衡。</li>
+</ul>
+<p>其架构与 vLLM 有相似之处，但调度器与 KV 管理是围绕<strong>基数树</strong>设计的。</p>
+<hr />
+<h2 id="43-radixattention-kv-cache">4.3 RadixAttention：把 KV Cache 组织成前缀树<a class="headerlink" href="#43-radixattention-kv-cache" title="Permanent link">&para;</a></h2>
+<h3 id="431-radix-tree">4.3.1 基数树（Radix Tree）速览<a class="headerlink" href="#431-radix-tree" title="Permanent link">&para;</a></h3>
+<p>基数树是一种压缩前缀树：每条边可以携带一段 token 序列，而不是单个字符。例如三个 prompt：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>A: "You are a helpful assistant. Q: 什么是 KV Cache?"
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>B: "You are a helpful assistant. Q: 什么是 PagedAttention?"
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>C: "You are a helpful assistant. Q: 什么是 RadixAttention?"
+</code></pre></div>
+<p>可以组织成图 4-2 所示的结构：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>                    root
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>                     │
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>     "You are a helpful assistant. Q: 什么是 "
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>                     │
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>              ┌──────┴──────┐
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>              │             │
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>          "KV Cache?"   "PagedAttention?" ...
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>              │
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>           [节点 A]
+</code></pre></div>
+<p><em>图 4-2　三个 prompt 共享前缀的基数树</em></p>
+<p>共享的前缀只存一份 KV；不同的后缀各自成节点。节点的边标签是 token 序列，节点上保存这段 token 对应的 KV 索引。SGLang 默认开启 Radix Cache（可用 <code>--disable-radix-cache</code> 关闭）；本节讲的就是它开启时的行为。</p>
+<h3 id="432">4.3.2 树节点存什么<a class="headerlink" href="#432" title="Permanent link">&para;</a></h3>
+<p>SGLang 的 <code>TreeNode</code> 大致包含：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>TreeNode
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>├── key: List[int]              # 这条边上的 token 序列
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>├── value: Optional[Tensor]     # 这段 token 对应的 KV 池索引
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>├── children: Dict[int, Node]   # 按第一个 token 索引子节点
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>├── parent: Node
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>├── lock_ref: int               # 有多少运行中的请求/操作锁定这段 KV（旧版可能叫 ref_counter）
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>├── last_access_time: float     # 用于 LRU 驱逐
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>└── hash_value: int             # 可选的哈希，用于快速比较/去重
+</code></pre></div>
+<p>几个关键设计：</p>
+<ul>
+<li><strong>边标签是 token 序列</strong>，不是单个 token；这让树更紧凑，减少节点数量；</li>
+<li><strong>value 是 KV 池的索引</strong>，不是 KV 数据本身；KV 数据存在一个大的 token 池里（<code>TokenToKVPool</code>）。这个池仍然是预分配的显存页/槽位，RadixAttention 只是索引结构，并不替代底层的分页分配；</li>
+<li><strong>lock_ref</strong> 保护正在被请求使用的节点，驱逐时不能动；</li>
+<li><strong>last_access_time</strong> 支持 LRU：越久没被访问的叶子越先被驱逐。</li>
+</ul>
+<blockquote>
+<p><strong>引用计数的借书类比</strong>：树节点像图书馆的书，<code>lock_ref</code> 是“当前有多少人正在借”。只要还有人借（&gt;0），就不能把书下架；所有人都还了（=0），才允许清理。这样能保证正在生成的请求不会读到一个被释放的 KV 节点。</p>
+</blockquote>
+<h3 id="433-match_prefix">4.3.3 匹配（match_prefix）<a class="headerlink" href="#433-match_prefix" title="Permanent link">&para;</a></h3>
+<p>新请求到来时，调度器用它的 token 序列在树中做最长前缀匹配：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">match_prefix</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">token_ids</span><span class="p">):</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">node</span> <span class="o">=</span> <span class="n">root</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">matched</span> <span class="o">=</span> <span class="mi">0</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">kv_indices</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="k">while</span> <span class="n">matched</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">token_ids</span><span class="p">):</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>        <span class="n">child</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">token_ids</span><span class="p">[</span><span class="n">matched</span><span class="p">])</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>        <span class="k">if</span> <span class="n">child</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>            <span class="k">break</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>        <span class="c1"># 比较 child.key 与 token_ids[matched:]</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>        <span class="n">common</span> <span class="o">=</span> <span class="n">longest_common_prefix</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">token_ids</span><span class="p">[</span><span class="n">matched</span><span class="p">:])</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>        <span class="k">if</span> <span class="n">common</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>            <span class="k">break</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>        <span class="n">kv_indices</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">value</span><span class="p">[:</span><span class="n">common</span><span class="p">])</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>        <span class="n">matched</span> <span class="o">+=</span> <span class="n">common</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>        <span class="k">if</span> <span class="n">common</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">key</span><span class="p">):</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>            <span class="c1"># 只匹配了节点的一部分：分裂节点，并返回前半段节点</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>            <span class="n">node</span> <span class="o">=</span> <span class="n">split_node</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">common</span><span class="p">)</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>            <span class="k">break</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>        <span class="n">node</span> <span class="o">=</span> <span class="n">child</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a>    <span class="k">return</span> <span class="n">kv_indices</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">matched</span>
+</code></pre></div>
+<p>关键点是<strong>节点分裂</strong>（图 4-3）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>匹配前:
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>  [ "ABCDEFG" ]  (一个节点)
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>       │
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>     children
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>请求前缀: "ABCD"
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>匹配后:
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>  [ "ABCD" ]  (原节点被分裂)
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>       │
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>  [ "EFG" ]   (新节点，继承原 value 的后半段)
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>       │
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>     children
+</code></pre></div>
+<p><em>图 4-3　match_prefix 命中节点内部时的分裂</em></p>
+<p>分裂只影响元数据，不复制 KV 数据：原节点的 <code>value</code> 按长度切开，前半段留在父节点，后半段给子节点。这样，任意 token 级前缀都能被精确匹配，而不像块级缓存那样受 16 token 对齐限制（前提是 <code>page_size=1</code>；把 page size 调大后，匹配粒度会变粗）。</p>
+<p><strong>手把手例子：一次“半路分叉”</strong></p>
+<p>假设树里已经有一条完整路径：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>root
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a> └── "You are a helpful assistant. Q: 什么是 KV Cache?"
+</code></pre></div>
+<p>现在来了一个新请求：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>"You are a helpful assistant. Q: 什么是 KV 的缓存?"
+</code></pre></div>
+<p>它和原路径共享到 <code>... 什么是 KV</code>，但后面不同。匹配时会在 <code>KV Cache?</code> 这个节点内部停下，于是分裂（图 4-4）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>分裂前:
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  [ "You are ... 什么是 KV Cache?" ]
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>分裂后:
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>  [ "You are ... 什么是 KV" ]          ← 共享部分
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>        ├── [ " Cache?" ]              ← 原请求的后半段
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>        └── [ " 的缓存?" ]             ← 新请求的后缀
+</code></pre></div>
+<p><em>图 4-4　一次“半路分叉”的匹配过程</em></p>
+<p>原节点的 KV 索引按长度切开，前半段留在父节点，后半段给 <code>" Cache?"</code> 子节点；新请求只需要为 <code>" 的缓存?"</code> 计算新的 KV。<strong>共享的 <code>... 什么是 KV</code> 一个 token 都不用重算</strong>。</p>
+<h3 id="434-insert">4.3.4 插入（insert）<a class="headerlink" href="#434-insert" title="Permanent link">&para;</a></h3>
+<p>请求生成结束后，把它完整的 token 序列（prompt + 输出）插入树中：</p>
+<ol>
+<li>从根开始找最长公共前缀；</li>
+<li>如果已有路径覆盖了全部 token，只需更新 <code>last_access_time</code>；</li>
+<li>如果只覆盖了一部分，分裂节点；</li>
+<li>把剩余后缀作为新节点挂上，<code>value</code> 指向这段 KV 的池索引；</li>
+<li>更新引用计数与访问时间。</li>
+</ol>
+<p>插入的复杂度与序列长度和分支数有关，通常是 <span class="arithmatex">\(O(L)\)</span> 级别的指针操作，相比 GPU 前向可以忽略；但在极高 QPS、大量短请求时，Python/C++ 的树操作也可能成为 CPU 瓶颈。</p>
+<blockquote>
+<p>chunked prefill 期间，已经算完的前缀也会被临时插入树中（对应源码里的 <code>cache_unfinished_req</code>），这样请求被分块或被抢占后仍能复用；请求全部结束后再补全整条序列。</p>
+<p><strong><span class="arithmatex">\(O(L)\)</span> 是什么意思？</strong> 大 O 记号描述“工作量随输入规模怎么增长”。<span class="arithmatex">\(O(L)\)</span> 表示 token 数从 1000 增加到 2000 时，树操作的工作量大致也翻倍，而不是平方增长。匹配/插入时，每个 token 基本只被走过一次；树的深度和分支数会影响常数项，但不会改变“线性”这个量级。跟 GPU 上几十亿次浮点运算相比，这些指针操作通常很小；只有当请求非常短、QPS 非常高时，CPU 树操作才会显现出来。</p>
+</blockquote>
+<h3 id="435-evict">4.3.5 驱逐（evict）<a class="headerlink" href="#435-evict" title="Permanent link">&para;</a></h3>
+<p>当 KV 池不足时，RadixCache 需要释放一些节点：</p>
+<ul>
+<li>只驱逐<strong>叶子节点</strong>（内部节点被多个分支共享，不能单独释放）；</li>
+<li>跳过 <code>lock_ref &gt; 0</code> 的节点（正在被请求使用）；</li>
+<li>按 <code>last_access_time</code> 做 LRU，最久未访问的叶子优先；</li>
+<li>释放节点的 KV 索引，从父节点的 children 中移除；</li>
+<li>可能递归地让父节点变成新的叶子。</li>
+</ul>
+<p>伪代码：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">evict</span><span class="p">(</span><span class="n">need_tokens</span><span class="p">):</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="n">freed</span> <span class="o">=</span> <span class="mi">0</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="k">while</span> <span class="n">freed</span> <span class="o">&lt;</span> <span class="n">need_tokens</span><span class="p">:</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>        <span class="n">leaf</span> <span class="o">=</span> <span class="n">find_lru_leaf</span><span class="p">(</span><span class="n">exclude_ref_count_positive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>        <span class="k">if</span> <span class="n">leaf</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>            <span class="k">raise</span> <span class="n">OutOfMemory</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>        <span class="n">freed</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">leaf</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>        <span class="n">free_kv_indices</span><span class="p">(</span><span class="n">leaf</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>        <span class="n">remove_from_parent</span><span class="p">(</span><span class="n">leaf</span><span class="p">)</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    <span class="k">return</span> <span class="n">freed</span>
+</code></pre></div>
+<p>这与操作系统的页缓存淘汰非常相似：<strong>LRU + 引用计数 + 只回收叶子</strong>。</p>
+<blockquote>
+<p><strong>版本补充（SGLang 0.5.23）</strong>：默认驱逐策略仍是 LRU，但 0.5.x 已支持通过 <code>--radix-eviction-policy</code> 选择其他策略、用 <code>--radix-eviction-policy-config</code> 配置参数，细节见官方 <a href="https://docs.sglang.io/docs/advanced_features/radix_eviction_policy">Radix Cache Eviction Policy</a>。本章的讨论以默认 LRU 为准。</p>
+</blockquote>
+<h3 id="436-radixattention">4.3.6 RadixAttention 的收益从哪里来<a class="headerlink" href="#436-radixattention" title="Permanent link">&para;</a></h3>
+<p>考虑一个多轮对话：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>第 1 轮: [system 2000 tokens][user Q1][assistant A1]
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>第 2 轮: [system 2000 tokens][user Q1][assistant A1][user Q2][assistant A2]
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>第 3 轮: [system 2000 tokens][user Q1][assistant A1][user Q2][assistant A2][user Q3]...
+</code></pre></div>
+<p>没有前缀缓存时，每一轮都要重新 prefill 全部历史；有 RadixAttention 时，第 2 轮只需 prefill 新增的 <code>[user Q2]</code>，第 3 轮只需 prefill <code>[user Q3]</code>。随轮数增加，节省的 prefill 计算量非常可观。</p>
+<p>类似地：</p>
+<ul>
+<li><strong>Agent 分支</strong>：同一任务的不同工具调用共享前面的推理轨迹；</li>
+<li><strong>RAG</strong>：多个 query 共享同一批检索文档；</li>
+<li><strong>Few-shot</strong>：所有请求共享同一段示例；</li>
+<li><strong>Beam search / 并行采样</strong>：候选共享 prompt 前缀；</li>
+<li><strong>RL rollout</strong>：同一 prompt 的多次采样共享前缀。</li>
+</ul>
+<p>在缓存容量足够、前缀确实重复、调度策略匹配的前提下，这类负载是 SGLang 最容易体现优势的场景；反过来，如果前缀几乎不重复，树维护可能只是净开销。</p>
+<h3 id="437">4.3.7 代价与限制<a class="headerlink" href="#437" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>元数据开销</strong>：每个节点要存 key、value、children、引用计数、时间戳；树很大时内存不可忽视；</li>
+<li><strong>CPU 操作</strong>：match/insert/evict 都在 CPU 侧，需要与 GPU 调度重叠，否则会成为瓶颈；</li>
+<li><strong>缓存污染</strong>：一次性、不重复的长 prompt 会占用缓存，挤掉真正热的前缀；需要 LRU/容量策略；</li>
+<li><strong>安全隔离</strong>：多租户下，前缀缓存可能造成信息泄漏（通过命中时间推断内容），需要租户隔离或盐值；</li>
+<li><strong>不是所有负载都受益</strong>：如果每个请求的 prompt 都完全不同，树的价值有限，反而增加开销。此时可以关闭 Radix Cache。</li>
+</ul>
+<hr />
+<h2 id="44-lpm-dfs-weight">4.4 缓存感知调度：LPM 与 DFS-weight<a class="headerlink" href="#44-lpm-dfs-weight" title="Permanent link">&para;</a></h2>
+<h3 id="441">4.4.1 为什么调度要“看见”前缀<a class="headerlink" href="#441" title="Permanent link">&para;</a></h3>
+<p>假设 waiting 队列里有三个请求：</p>
+<table>
+<thead>
+<tr>
+<th>请求</th>
+<th>prompt 长度</th>
+<th>与缓存匹配的前缀</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td>4000</td>
+<td>3500</td>
+</tr>
+<tr>
+<td>B</td>
+<td>500</td>
+<td>0</td>
+</tr>
+<tr>
+<td>C</td>
+<td>800</td>
+<td>700</td>
+</tr>
+</tbody>
+</table>
+<p>如果按 FCFS 先跑 B，再跑 A、C，那么 A 和 C 的高命中前缀可能在等待期间被其他请求驱逐；如果先跑 A 和 C，它们只需 prefill 500 和 100 个 token，整体吞吐更高。</p>
+<blockquote>
+<p><strong>快递分拣类比</strong>：快递站有很多包裹，如果按到达顺序随便送，可能同一小区要跑很多趟。LPM 相当于“先把同一小区的包裹集中起来一起送”，跑一趟覆盖更多件，效率高。但如果有几个小区一直有大量包裹，偏远小区的包裹可能一直排不上——这就是 LPM 的公平性问题。</p>
+</blockquote>
+<p><strong>最长前缀匹配（Longest Prefix Match, LPM）</strong> 的策略就是：优先调度“已匹配前缀最长”的请求，最大化 KV 复用、减少重复计算。</p>
+<h3 id="442-sglang">4.4.2 SGLang 的调度策略<a class="headerlink" href="#442-sglang" title="Permanent link">&para;</a></h3>
+<p>SGLang 的 <code>--schedule-policy</code> 提供多种策略（名称与可用项以版本为准）：</p>
+<ul>
+<li><strong><code>fcfs</code></strong>：当前版本的默认策略，先来先服务，公平、可预测，但可能错过缓存复用；</li>
+<li><strong><code>lpm</code></strong>：按最长前缀匹配优先，需要显式开启；SGLang 0.4.0 曾把它作为默认，0.4.6 起及 0.5.23 均为默认 <code>fcfs</code>，所以旧资料里的“默认 LPM”要按版本理解；</li>
+<li><strong><code>dfs-weight</code></strong>：沿基数树给等待请求计算权重，优先调度更靠近热节点的请求，以提升缓存局部性（具体权重算法以版本为准）；</li>
+<li><strong><code>hrrn</code></strong>：Highest Response Ratio Next，兼顾等待时间与执行代价，用于缓解饿死；</li>
+<li><strong><code>shortest-prefill-first</code></strong>：优先短 prefill，降低平均 TTFT；</li>
+<li><strong><code>random</code></strong>：随机，通常用于对照或避免系统性偏置。</li>
+</ul>
+<p>从设计上看，LPM/DFS-weight/HRRN/SPF 属于“缓存感知”策略，FCFS/random 属于“缓存无关”策略；前者追求复用与吞吐，后者追求公平与可预测。当前版本默认是 FCFS；如果追求缓存复用，要显式切换到 LPM 或 DFS-weight，并评估公平性风险。</p>
+<blockquote>
+<p><strong>核对日期 2026-11（SGLang 0.5.23）</strong>：<code>schedule_policy</code> 默认 <code>fcfs</code>，可选值有 <code>lpm</code>、<code>random</code>、<code>fcfs</code>、<code>dfs-weight</code>、<code>lof</code>、<code>priority</code>、<code>routing-key</code>、<code>hrrn</code>、<code>shortest-prefill-first</code>；<code>max_prefill_tokens</code> 默认 16384；<code>chunked_prefill_size</code> 默认 <code>None</code>（由引擎自动决定），设为 <code>-1</code> 可关闭 chunked prefill；<code>page_size</code> 默认 1。参数会随版本变化，启动前用 <code>--help</code> 或 <a href="https://docs.sglang.io/docs/advanced_features/server_arguments">官方 Server Arguments</a> 复核。另注：0.5.x 的参数定义已从单一的 <code>server_args.py</code> 拆分到 <code>sglang/srt/arg_groups/fields/</code> 下。</p>
+</blockquote>
+<p>LPM 的实现大致是：</p>
+<ol>
+<li>对 waiting 队列中的每个请求，调用 <code>match_prefix</code> 计算可复用的 token 数；</li>
+<li>按匹配长度降序排序（或维护优先队列）；</li>
+<li>依次尝试调度，直到 token budget 或显存耗尽；</li>
+<li>未调度的请求留在队列中，下一轮重新计算（因为缓存可能变化）。</li>
+</ol>
+<h3 id="443-lpm">4.4.3 LPM 的公平性问题<a class="headerlink" href="#443-lpm" title="Permanent link">&para;</a></h3>
+<p>LPM 有一个明显风险：<strong>长前缀请求可能饿死短前缀请求</strong>。如果源源不断有高命中的长请求到来，低命中请求可能永远排不上。</p>
+<p>缓解手段：</p>
+<ul>
+<li>队列 aging：等待越久，优先级越高；</li>
+<li>配额：为不同租户/请求类型预留槽位；</li>
+<li>混合策略：一部分 batch 按 LPM，一部分按 FCFS；</li>
+<li>在延迟敏感的在线场景，显式使用 <code>fcfs</code> 或优先级调度。</li>
+</ul>
+<p>这是一个典型的“吞吐 vs 公平/尾延迟”权衡，没有免费午餐。</p>
+<h3 id="444-vllm">4.4.4 与 vLLM 的对比（预告）<a class="headerlink" href="#444-vllm" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>vLLM</th>
+<th>SGLang</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>默认顺序</td>
+<td>FCFS</td>
+<td>FCFS（可切 LPM 等缓存感知策略）</td>
+</tr>
+<tr>
+<td>前缀感知</td>
+<td>缓存命中，但调度不按前缀排序</td>
+<td>默认不排序；开启 LPM 后主动按前缀匹配排序</td>
+</tr>
+<tr>
+<td>优点</td>
+<td>公平、可预测、实现简单</td>
+<td>前缀密集负载吞吐高、TTFT 低</td>
+</tr>
+<tr>
+<td>风险</td>
+<td>可能错过复用机会</td>
+<td>可能饿死低命中请求</td>
+</tr>
+</tbody>
+</table>
+<p>第 5 章会展开分析“什么时候这个差异真正重要”。</p>
+<hr />
+<h2 id="45">4.5 调度与执行的重叠：零开销批调度<a class="headerlink" href="#45" title="Permanent link">&para;</a></h2>
+<h3 id="451-cpu">4.5.1 CPU 侧开销从哪里来<a class="headerlink" href="#451-cpu" title="Permanent link">&para;</a></h3>
+<p>每一步调度，CPU 要做很多事：</p>
+<ul>
+<li>遍历 running/waiting 队列；</li>
+<li>匹配前缀、分配/释放 KV；</li>
+<li>构造 batch 元数据；</li>
+<li>准备 attention 的 indptr/indices；</li>
+<li>处理采样结果、停止条件；</li>
+<li>detokenize、流式输出。</li>
+</ul>
+<p>模型越小、batch 越小、QPS 越高，GPU 计算越快，CPU 越容易成为瓶颈。此时 GPU 会周期性“等 CPU”，利用率出现锯齿。</p>
+<h3 id="452">4.5.2 重叠调度的思路<a class="headerlink" href="#452" title="Permanent link">&para;</a></h3>
+<p>SGLang 的 <strong>overlap scheduler</strong>（零开销批调度）把第 <span class="arithmatex">\(i\)</span> 步的 CPU 侧工作与第 <span class="arithmatex">\(i-1\)</span> 步的 GPU 计算重叠（图 4-5）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>时间 →
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>GPU:   [ forward batch i-1 ]  [ forward batch i ]  [ forward batch i+1 ]
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>CPU:        [ schedule i ]        [ schedule i+1 ]      [ schedule i+2 ]
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>             [ process i-1 ]       [ process i ]
+</code></pre></div>
+<p><em>图 4-5　overlap scheduler 的 CPU/GPU 重叠</em></p>
+<p>这样，只要 CPU 工作时间不超过 GPU 前向时间，调度开销就被“藏”起来了，GPU 不再空等。</p>
+<p>实现上需要：</p>
+<ul>
+<li>双缓冲的 batch 状态（当前 batch / 下一 batch）；</li>
+<li>CUDA event/stream 同步，保证依赖正确；</li>
+<li>对未来 token 的处理（停止条件、输出长度）做延迟一拍的处理；</li>
+<li>detokenizer 独立进程/线程，避免阻塞调度。</li>
+</ul>
+<p>可以用 <code>--disable-overlap-schedule</code> 关闭，便于调试或排查正确性问题。对大多数 decode 负载，开启重叠能提升吞吐，尤其是小模型和高并发场景。</p>
+<h3 id="453-chunked-prefill-prefilldecode">4.5.3 Chunked Prefill 与 Prefill/Decode 混跑<a class="headerlink" href="#453-chunked-prefill-prefilldecode" title="Permanent link">&para;</a></h3>
+<p>SGLang 同样支持 chunked prefill：</p>
+<ul>
+<li><code>--chunked-prefill-size</code> 控制单个 chunk 的最大 token 数；</li>
+<li><code>--max-prefill-tokens</code> 控制一步内 prefill 的 token 预算；</li>
+<li>调度器会把 prefill chunk 与 decode 请求混在同一个 batch 中，以平衡算力与带宽。</li>
+</ul>
+<p>与 vLLM 的差异主要在<strong>排序策略</strong>：开启 LPM 等缓存感知策略后，SGLang 会结合前缀匹配与 chunk 切分，优先让高命中请求进入；默认 FCFS 下仍按到达顺序。vLLM 则主要使用 FCFS + token budget。</p>
+<h3 id="454-cuda-graph-attention-backend">4.5.4 CUDA Graph 与 Attention Backend<a class="headerlink" href="#454-cuda-graph-attention-backend" title="Permanent link">&para;</a></h3>
+<p>SGLang 的执行层优化包括：</p>
+<ul>
+<li><strong>CUDA Graph</strong>：捕获 decode 步，按 batch size 分桶；0.5.23 用 <code>--cuda-graph-max-bs-decode</code> / <code>--cuda-graph-max-bs-prefill</code> 分别控制 decode/prefill 的最大捕获 batch，用 <code>--disable-decode-cuda-graph</code> / <code>--disable-prefill-cuda-graph</code> 分阶段关闭（旧版为 <code>--cuda-graph-max-bs</code> 与 <code>--disable-cuda-graph</code>）；</li>
+<li><strong>FlashInfer</strong>：常见的高性能 attention backend 之一（是否为默认取决于模型、硬件与版本），支持 paged/ragged KV、FP8、MLA 等；</li>
+<li><strong>FlashAttention 3 / FlashMLA / CUTLASS MLA</strong>：针对 Hopper 和 DeepSeek 类模型的专用后端；</li>
+<li><strong>torch.compile</strong>（可选）：对部分模型/层做编译优化；</li>
+<li><strong>GPU 采样</strong>：温度、top-p、约束 mask 都在 GPU 上完成；</li>
+<li><strong>增量 detokenize</strong>：独立的 DetokenizerManager，与调度/执行流水化。</li>
+</ul>
+<p>SGLang 与 FlashInfer 社区关系密切，很多 kernel 优化会先在 SGLang 落地；这也是它在特定模型上性能突出的原因之一。但“默认后端最快”不是绝对的，仍应针对模型和硬件实测。</p>
+<hr />
+<h2 id="46-fsm">4.6 结构化输出：压缩 FSM 与跳转解码<a class="headerlink" href="#46-fsm" title="Permanent link">&para;</a></h2>
+<h3 id="461">4.6.1 约束解码的基本原理<a class="headerlink" href="#461" title="Permanent link">&para;</a></h3>
+<p>给定 JSON Schema、正则或 EBNF（扩展巴科斯范式，一种描述语法的格式），可以编译成一个有限状态机（FSM）：</p>
+<ul>
+<li>每个状态代表“当前已匹配到哪里”；</li>
+<li>每个状态允许的 next token 集合是确定的；</li>
+<li>采样时，把非法 token 的 logit 置为 <span class="arithmatex">\(-\infty\)</span>，只从合法 token 中采样；</li>
+<li>生成一个 token 后，FSM 迁移到下一个状态。</li>
+</ul>
+<p><strong>一个 JSON 的 FSM 例子</strong>。假设要求输出：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Alice"</span><span class="p">,</span><span class="w"> </span><span class="nt">"age"</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">}</span>
+</code></pre></div>
+<p>FSM 可以粗略表示成：</p>
+<table>
+<thead>
+<tr>
+<th>当前状态</th>
+<th>只允许出现</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开始</td>
+<td><code>{</code></td>
+<td>必须以左花括号开头</td>
+</tr>
+<tr>
+<td>键名</td>
+<td><code>"name"</code></td>
+<td>本例子假设键顺序固定；真实 JSON Schema 通常不规定键序</td>
+</tr>
+<tr>
+<td>冒号</td>
+<td><code>:</code></td>
+<td>键名后必须是冒号</td>
+</tr>
+<tr>
+<td>值</td>
+<td>任意字符串</td>
+<td>如 <code>"Alice"</code></td>
+</tr>
+<tr>
+<td>逗号/结尾</td>
+<td><code>,</code> 或 <code>}</code></td>
+<td>还有 age 就逗号，否则结束</td>
+</tr>
+<tr>
+<td>第二个键</td>
+<td><code>"age"</code></td>
+<td>本例子假设 age 紧随其后</td>
+</tr>
+<tr>
+<td>值</td>
+<td>整数</td>
+<td>如 <code>30</code></td>
+</tr>
+<tr>
+<td>结尾</td>
+<td><code>}</code></td>
+<td>必须闭合</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>注意</strong>：JSON Schema 本身不规定对象键的顺序。这里为了演示压缩 FSM，额外假设“先 name 后 age”。真实实现会允许任意合法键序，状态数更多，但 jump-forward 的原理相同。</p>
+</blockquote>
+<p>在“键名”状态，模型其实不需要“自由发挥”：它必须输出 <code>"name"</code>。如果这些 token 是确定的，SGLang 就可以一次性填入，而不是让模型逐个猜。这就是 jump-forward 的用武之地。</p>
+<p>问题在于：词表可能有 10 万～20 万 token，每一步都计算“哪些 token 合法”很贵；FSM 状态也可能很多。</p>
+<h3 id="462-sglang">4.6.2 SGLang 的优化<a class="headerlink" href="#462-sglang" title="Permanent link">&para;</a></h3>
+<p>SGLang 以 XGrammar 作为主要语法后端（也可选 llguidance/outlines 等，视版本），并做了两层优化：</p>
+<ol>
+<li><strong>压缩 FSM</strong>：把大量“只有一个合法转移”的连续状态压缩成一个，减少状态数与查表开销；</li>
+<li><strong>Jump-forward decoding</strong>：如果当前状态后面有一段<strong>确定的 token 序列</strong>（例如 JSON 的 <code>{"name": "</code>），就一次性把这些 token 直接填入，不必逐步采样。</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>普通约束解码:
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>  step 1: 采样 '{'
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>  step 2: 采样 '"'
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>  step 3: 采样 'name'
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>  step 4: 采样 '"'
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>  step 5: 采样 ':'
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>  ...
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>Jump-forward:
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>  当前 FSM 确定接下来必然是 '{"name": "'
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>  → 一次性填入这几个 token（具体数量取决于 tokenizer）
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>  → 直接从值的部分开始采样
+</code></pre></div>
+<p>此外，SGLang 会把语法编译与前一步的 GPU 计算重叠，避免“收到请求才开始编译语法”的延迟。</p>
+<h3 id="463">4.6.3 使用方式<a class="headerlink" href="#463" title="Permanent link">&para;</a></h3>
+<p>OpenAI 兼容接口：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">"Qwen/Qwen2.5-7B-Instruct"</span><span class="p">,</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="s2">"生成一个用户信息"</span><span class="p">}],</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="n">response_format</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>        <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"json_schema"</span><span class="p">,</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>        <span class="s2">"json_schema"</span><span class="p">:</span> <span class="p">{</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>            <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>            <span class="s2">"schema"</span><span class="p">:</span> <span class="p">{</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>                <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"object"</span><span class="p">,</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>                <span class="s2">"properties"</span><span class="p">:</span> <span class="p">{</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>                    <span class="s2">"name"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"string"</span><span class="p">},</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>                    <span class="s2">"age"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"integer"</span><span class="p">}</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>                <span class="p">},</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>                <span class="s2">"required"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">"age"</span><span class="p">]</span>
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>            <span class="p">}</span>
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a>        <span class="p">}</span>
+<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a>    <span class="p">}</span>
+<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a><span class="p">)</span>
+</code></pre></div>
+<p>原生接口还支持 <code>regex</code>、<code>ebnf</code> 等更强约束。对于“必须输出合法 JSON/DSL”的场景，约束解码不仅提升成功率，还能减少无效 token 的生成，间接提升吞吐。</p>
+<hr />
+<h2 id="47-dp-attentionepeplb-pd">4.7 大规模并行：DP Attention、EP、EPLB 与 PD 分离<a class="headerlink" href="#47-dp-attentionepeplb-pd" title="Permanent link">&para;</a></h2>
+<h3 id="471-tp">4.7.1 张量并行（TP）<a class="headerlink" href="#471-tp" title="Permanent link">&para;</a></h3>
+<p>与 vLLM 类似：按注意力头和 MLP 中间维度切分，每层 all-reduce。SGLang 的 TP 实现强调与 FlashInfer/FlashMLA 的配合，并支持多机 TP。</p>
+<h3 id="472-dp-attention">4.7.2 DP Attention<a class="headerlink" href="#472-dp-attention" title="Permanent link">&para;</a></h3>
+<p>对 DeepSeek 这类使用 MLA 的模型，SGLang 提供了 <strong>DP attention</strong>：</p>
+<ul>
+<li>把请求按数据并行（DP）分到不同 rank；</li>
+<li>每个 rank 独立计算自己那部分请求的注意力；</li>
+<li>MoE 部分再用专家并行（EP）做 all-to-all；</li>
+<li>避免 TP 下每张卡都复制完整的 KV/注意力计算。</li>
+</ul>
+<p>配置通常是：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>python<span class="w"> </span>-m<span class="w"> </span>sglang.launch_server<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span>--model-path<span class="w"> </span>deepseek-ai/DeepSeek-V3<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">  </span>--enable-dp-attention<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">  </span>--dp-size<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">  </span>--ep-size<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">  </span>...
+</code></pre></div>
+<p>DP attention 能显著提升大批量 decode 的吞吐，但要求模型结构、backend 和并行配置匹配；不是所有模型都适用。</p>
+<h3 id="473-eplb">4.7.3 专家并行与 EPLB<a class="headerlink" href="#473-eplb" title="Permanent link">&para;</a></h3>
+<p>MoE 模型的专家分布在不同 GPU 上，token 通过 all-to-all 路由。问题是：不同专家的负载可能严重不均（热门专家排队，冷门专家空转）。</p>
+<p><strong>EPLB（Expert Parallel Load Balancer）</strong> 会统计专家负载，动态调整专家到 GPU 的映射，把热门专家复制/迁移到更多卡上，缓解长尾。SGLang 提供 <code>--enable-eplb</code> 及相关算法选项，是 DeepSeek 大规模部署的关键能力之一。</p>
+<h3 id="474-pd">4.7.4 PD 分离<a class="headerlink" href="#474-pd" title="Permanent link">&para;</a></h3>
+<p>SGLang 支持把 prefill 和 decode 部署到不同实例（图 4-6）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>┌─────────────┐      KV 传输       ┌─────────────┐
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>│ Prefill 实例 │ ─────────────────▶ │ Decode 实例  │
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>│ 计算 prompt  │  RDMA/NVLink       │ 逐 token 生成 │
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>└─────────────┘                    └─────────────┘
+</code></pre></div>
+<p><em>图 4-6　PD 分离的部署形态</em></p>
+<p>典型配置：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># Prefill 节点</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>python<span class="w"> </span>-m<span class="w"> </span>sglang.launch_server<span class="w"> </span>--model-path<span class="w"> </span>...<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span>--disaggregation-mode<span class="w"> </span>prefill<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">  </span>--disaggregation-transfer-backend<span class="w"> </span>mooncake<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">30000</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="c1"># Decode 节点</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>python<span class="w"> </span>-m<span class="w"> </span>sglang.launch_server<span class="w"> </span>--model-path<span class="w"> </span>...<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">  </span>--disaggregation-mode<span class="w"> </span>decode<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">  </span>--disaggregation-transfer-backend<span class="w"> </span>mooncake<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">30001</span>
+</code></pre></div>
+<p>收益：</p>
+<ul>
+<li>prefill 与 decode 独立扩缩容；</li>
+<li>避免长 prompt 的 prefill 阻塞 decode 的 ITL；</li>
+<li>可以为两个阶段选择不同的并行策略/硬件。</li>
+</ul>
+<p>代价：</p>
+<ul>
+<li>KV 传输占用高速网络；</li>
+<li>需要 bootstrap 服务、连接管理、故障恢复；</li>
+<li>小模型/短 prompt 场景可能不划算。</li>
+</ul>
+<h3 id="475-hicache-cpu">4.7.5 HiCache：把缓存延伸到 CPU 和磁盘<a class="headerlink" href="#475-hicache-cpu" title="Permanent link">&para;</a></h3>
+<p>GPU 显存有限，Radix Cache 只能保留最近使用的前缀。<strong>HiCache</strong> 把缓存分层（图 4-7）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>GPU HBM（最快，容量最小）
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>   ↕ PCIe/NVLink
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>CPU DRAM（较大，较快）
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>   ↕ 网络/磁盘
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>SSD/分布式存储（最大，最慢）
+</code></pre></div>
+<p><em>图 4-7　HiCache 的 GPU/CPU/磁盘分层</em></p>
+<p>Radix 树仍然是索引结构，但节点的 KV 可以存放在不同层级；命中时按需预取到 GPU。对长会话、Agent、RAG 等“前缀复用跨请求、跨时间”的负载，HiCache 能显著提高缓存命中率，降低重复 prefill。</p>
+<p>代价是传输延迟与缓存一致性管理；是否开启取决于 workload 的复用距离与网络带宽。</p>
+<hr />
+<h2 id="48">4.8 投机解码与前端生态<a class="headerlink" href="#48" title="Permanent link">&para;</a></h2>
+<h3 id="481">4.8.1 投机解码<a class="headerlink" href="#481" title="Permanent link">&para;</a></h3>
+<p>SGLang 支持多种投机解码：</p>
+<ul>
+<li><strong>EAGLE / EAGLE-2 / EAGLE-3</strong>：用轻量草稿头预测多个 token，树状验证；</li>
+<li><strong>Draft model</strong>：小模型起草，大模型验证；</li>
+<li><strong>MTP（Multi-Token Prediction）</strong>：DeepSeek 系列自带的多 token 预测头；</li>
+<li><strong>N-gram</strong>：从上下文匹配候选（版本相关）。</li>
+</ul>
+<p>配置示例：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>python<span class="w"> </span>-m<span class="w"> </span>sglang.launch_server<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span>--model-path<span class="w"> </span>meta-llama/Llama-3.1-8B-Instruct<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">  </span>--speculative-algorithm<span class="w"> </span>EAGLE<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">  </span>--speculative-draft-model-path<span class="w"> </span>...<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">  </span>--speculative-num-steps<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">  </span>--speculative-eagle-topk<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">  </span>--speculative-num-draft-tokens<span class="w"> </span><span class="m">8</span>
+</code></pre></div>
+<p>与所有引擎一样，收益取决于接受率；代码、结构化输出、重复性高的文本更容易加速。</p>
+<h3 id="482">4.8.2 缓存感知路由<a class="headerlink" href="#482" title="Permanent link">&para;</a></h3>
+<p>单机多实例部署时，请求应该发到“缓存命中最高”的实例。SGLang 提供独立的 <strong>router</strong>（Rust 实现），支持：</p>
+<ul>
+<li><strong>cache-aware</strong>：维护每个 worker 的前缀缓存近似视图，优先路由到匹配最长的实例；</li>
+<li><strong>power-of-two</strong>：随机选两个，按负载/缓存选较好的；</li>
+<li><strong>round-robin / random</strong>：简单基线。</li>
+</ul>
+<p>这对多轮对话、Agent 集群很重要：如果请求被随机打到没有缓存的实例，前缀复用就白费了。</p>
+<h3 id="483">4.8.3 前端生态<a class="headerlink" href="#483" title="Permanent link">&para;</a></h3>
+<p>除了 OpenAI API，SGLang 还提供：</p>
+<ul>
+<li>原生 <code>/generate</code> 接口，支持 <code>regex</code>、<code>json_schema</code>、<code>ebnf</code> 等参数；</li>
+<li>Python <code>Engine</code> 类，用于离线批量推理；</li>
+<li>与强化学习框架（如 verl）的 rollout 集成；</li>
+<li>多模态模型支持（Qwen-VL、LLaVA、InternVL 等）；</li>
+<li>embedding/rerank 模型支持；</li>
+<li>2025—2026 年还扩展出 Diffusion、Omni（TTS/ASR）等方向。</li>
+</ul>
+<hr />
+<h2 id="49">4.9 源码导读（概念版）<a class="headerlink" href="#49" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>路径按 <strong>SGLang 0.5.23</strong> 的源码树核对（2026-11-25）；0.5.x 重构较频繁，找不到时用 <code>grep</code> 按类名定位。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>典型路径</th>
+<th>看什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>启动入口</td>
+<td><code>python/sglang/srt/entrypoints/engine.py</code></td>
+<td>Engine 初始化、参数</td>
+</tr>
+<tr>
+<td>HTTP 服务</td>
+<td><code>python/sglang/srt/entrypoints/http_server.py</code></td>
+<td>OpenAI 路由、请求解析</td>
+</tr>
+<tr>
+<td>Tokenizer 管理</td>
+<td><code>python/sglang/srt/managers/tokenizer_manager.py</code></td>
+<td>输入处理、流式输出</td>
+</tr>
+<tr>
+<td>调度器</td>
+<td><code>python/sglang/srt/managers/scheduler.py</code></td>
+<td>主循环、overlap、批处理</td>
+</tr>
+<tr>
+<td>调度策略</td>
+<td><code>python/sglang/srt/managers/schedule_policy.py</code></td>
+<td>LPM/FCFS/DFS-weight</td>
+</tr>
+<tr>
+<td>Batch 结构</td>
+<td><code>python/sglang/srt/managers/schedule_batch.py</code></td>
+<td>PrefillAdder、batch 元数据</td>
+</tr>
+<tr>
+<td>Radix 缓存</td>
+<td><code>python/sglang/srt/mem_cache/radix_cache.py</code></td>
+<td>match/insert/evict/split</td>
+</tr>
+<tr>
+<td>内存池</td>
+<td><code>python/sglang/srt/mem_cache/memory_pool.py</code></td>
+<td>TokenToKVPool、ReqToTokenPool</td>
+</tr>
+<tr>
+<td>分层缓存</td>
+<td><code>python/sglang/srt/mem_cache/unified_radix_cache.py</code></td>
+<td>统一 Radix 缓存与 HiCache 分层/回写（0.5.23 路径；旧版为 <code>hiradix_cache.py</code>）</td>
+</tr>
+<tr>
+<td>ModelRunner</td>
+<td><code>python/sglang/srt/model_executor/model_runner.py</code></td>
+<td>输入构造、forward、采样</td>
+</tr>
+<tr>
+<td>Attention 后端</td>
+<td><code>python/sglang/srt/layers/attention/</code></td>
+<td>FlashInfer/FA3/FlashMLA</td>
+</tr>
+<tr>
+<td>投机解码</td>
+<td><code>python/sglang/srt/speculative/</code></td>
+<td>EAGLE、draft、验证</td>
+</tr>
+<tr>
+<td>PD 分离</td>
+<td><code>python/sglang/srt/disaggregation/</code></td>
+<td>prefill/decode 角色、KV 传输</td>
+</tr>
+</tbody>
+</table>
+<p>阅读建议：</p>
+<ol>
+<li>先看 <code>scheduler.py</code> 的 <code>event_loop_overlap</code> / <code>event_loop_normal</code>，理解两种主循环；</li>
+<li>再看 <code>schedule_policy.py</code> 如何实现 FCFS、LPM 等策略；</li>
+<li>然后看 <code>radix_cache.py</code> 的 <code>match_prefix</code>、<code>insert</code>、<code>evict</code>；</li>
+<li>最后看 <code>model_runner.py</code> 如何把 radix 匹配到的 KV 索引喂给 attention backend。</li>
+</ol>
+<hr />
+<h2 id="410">4.10 优势与局限<a class="headerlink" href="#410" title="Permanent link">&para;</a></h2>
+<h3 id="_1">优势<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>前缀复用做到 token 级</strong>：当 <code>page_size=1</code> 时，任意长度的共享前缀都能精确命中，不受块对齐限制；<code>page_size&gt;1</code> 时退化为页级；</li>
+<li><strong>缓存感知调度（可选）</strong>：LPM/DFS-weight 主动提高命中率，前缀密集负载吞吐和 TTFT 表现好；需要显式开启，并注意公平性；</li>
+<li><strong>程序级优化</strong>：前端语言表达 fork/select/约束，运行时可以针对性优化；</li>
+<li><strong>结构化输出强</strong>：压缩 FSM + jump-forward，JSON/正则/EBNF 场景成熟；</li>
+<li><strong>大规模 MoE 经验</strong>：DP attention、EP、EPLB、PD 分离，DeepSeek 类模型部署案例多；</li>
+<li><strong>CPU 侧优化</strong>：overlap scheduler、增量 detokenize，高 QPS 小模型场景有优势；</li>
+<li><strong>性能迭代快</strong>：与 FlashInfer、EAGLE 等社区结合紧密。</li>
+</ul>
+<h3 id="_2">局限<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>模型/硬件覆盖不如 vLLM 广</strong>：长尾模型、非 NVIDIA 后端、特殊量化格式可能支持滞后；</li>
+<li><strong>树维护有开销</strong>：前缀完全不同的负载下，Radix Cache 可能只增加成本；</li>
+<li><strong>LPM 公平性风险</strong>：低命中请求可能饿死，需要额外策略；</li>
+<li><strong>前端语言使用门槛</strong>：大多数用户只用 OpenAI API，DSL 的生态与文档相对小众；</li>
+<li><strong>版本/参数变化快</strong>：新特性多，默认值和 flag 在版本间可能变化，生产升级需要回归测试；</li>
+<li><strong>多租户隔离</strong>：前缀缓存需要额外的安全考虑。</li>
+</ul>
+<hr />
+<h2 id="411">4.11 常见误区<a class="headerlink" href="#411" title="Permanent link">&para;</a></h2>
+<p><strong>误区 1：有 RadixAttention 就一定比 vLLM 快。</strong><br />
+前缀完全不共享、输出很长、缓存压力小时，树维护可能是负收益。性能取决于 workload，见第 5 章。</p>
+<p><strong>误区 2：Radix 树的节点里存的是 KV 数据本身。</strong><br />
+节点存的是“边上的 token 序列 + KV 池索引”，真正的 K/V 张量在统一的 token 池里。树只是索引结构。</p>
+<p><strong>误区 3：前缀缓存可以共享任意相同的后缀。</strong><br />
+只能共享“从开头开始”的前缀。两个请求如果中间不同、后面又相同，后面那段不能直接复用，因为注意力的上下文不同。</p>
+<p><strong>误区 4：LPM 总是更好。</strong><br />
+LPM 提高缓存命中，但可能饿死低命中请求，伤害 P99 和公平性。SGLang 提供 FCFS/HRRN 等策略就是为此。</p>
+<p><strong>误区 5：SGLang 只是一个前端 DSL。</strong><br />
+SGLang 现在主要指 SRT 运行时（serving 引擎）；前端语言是它的一部分历史和特色，但大多数用户直接用 OpenAI API。</p>
+<p><strong>误区 6：结构化输出是“免费”的。</strong><br />
+语法编译、FSM 状态、token mask 都有开销；复杂 schema 可能降低吞吐。压缩 FSM 和 jump-forward 是在降低这些开销，不是消除。</p>
+<p><strong>误区 7：DP attention/EPLB 对所有模型都适用。</strong><br />
+它们主要针对 DeepSeek 类 MLA + MoE 模型；普通稠密模型用不上，配置错了反而出问题。</p>
+<hr />
+<h2 id="412">4.12 本章小结<a class="headerlink" href="#412" title="Permanent link">&para;</a></h2>
+<ul>
+<li>SGLang = 前端语言（表达程序结构）+ 运行时 SRT（高性能 serving）。</li>
+<li><strong>RadixAttention</strong> 把 KV Cache 的索引组织成压缩前缀树：token 级匹配、节点分裂、LRU 驱逐、引用计数；真正的 K/V 张量仍在内存池中。</li>
+<li><strong>缓存感知调度（可选）</strong>：开启 LPM 后优先高命中请求，DFS-weight 进一步提升局部性；代价是公平性风险。</li>
+<li><strong>Overlap scheduler</strong> 把 CPU 调度与 GPU 计算重叠，降低小模型/高 QPS 下的 CPU 瓶颈。</li>
+<li><strong>结构化输出</strong>：XGrammar + 压缩 FSM + jump-forward，显著降低约束解码开销。</li>
+<li><strong>大规模能力</strong>：DP attention、EP/EPLB、PD 分离、HiCache，支撑 DeepSeek 类模型与长会话场景。</li>
+<li>优势在前缀密集、Agent/RAG、结构化输出、大规模 MoE；局限在覆盖广度、树开销与公平性。</li>
+</ul>
+<blockquote>
+<p><strong>用大白话再说一遍</strong>：SGLang 把 KV 组织成一棵“文件夹树”。相同前缀的请求走同一段路径，不用重新 prefill；谁要分叉，就在分叉点把文件夹拆开。若开启缓存感知调度，还会优先安排“路径更长、命中更多”的请求，像快递先送同一小区。结构化输出则是给模型一张“语法地图”，只允许走合法的路，能确定的路段直接快进。</p>
+<p><strong>延伸阅读</strong>：SGLang 论文（NeurIPS 2024）、LMSYS 的 RadixAttention 博客、SGLang 文档中的 <a href="https://docs.sglang.io/docs/advanced_features/hicache">HiCache</a> / PD Disaggregation 章节，以及 <code>radix_cache.py</code>、<code>scheduler.py</code> 的源码。</p>
+</blockquote>
+<hr />
+<h2 id="_3">思考题<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<ol>
+<li>画出三个 prompt 共享 2000 token 前缀、各自有 100 token 后缀的基数树。插入第二个 prompt 时会发生节点分裂吗？为什么？</li>
+<li>RadixAttention 为什么只驱逐叶子节点？如果允许驱逐内部节点，会破坏什么不变量？</li>
+<li>LPM 调度在什么流量下会伤害尾延迟？请设计一个既能提高缓存命中、又避免饿死的调度策略。</li>
+<li>Overlap scheduler 为什么需要“双缓冲”的 batch 状态？如果直接在当前 batch 上调度下一步，会有什么竞争条件？</li>
+<li>压缩 FSM 与 jump-forward 分别优化了约束解码的哪一部分开销？它们能叠加吗？</li>
+<li>DP attention 与 TP 在 KV Cache 存储和通信模式上有什么本质区别？为什么 DeepSeek 类模型更适合 DP attention？</li>
+<li>HiCache 的命中率提升在什么 workload 下最明显？如果网络带宽很低，开启 HiCache 可能反而变慢，为什么？</li>
+<li>用自己的话解释：RadixAttention 与 PagedAttention 是“互斥”还是“可组合”的？请给出一种组合方式。</li>
+</ol>
+<blockquote>
+<p>参考答案与提示见<a href="../appendix-b-exercises/">附录 B</a>。</p>
+</blockquote>
+<hr />
+<blockquote>
+<p><strong>继续阅读</strong>：<a href="../05-mechanism-comparison/">第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知 →</a></p>
+</blockquote>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../03-vllm/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../05-mechanism-comparison/" class="md-footer__link md-footer__link--next" aria-label="下一页: 第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      © 2026 ShiZiMiao · 文档 CC BY 4.0 · 代码 MIT · 版本与性能结论请以官方文档和自测为准
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

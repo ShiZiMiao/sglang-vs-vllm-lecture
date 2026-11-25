@@ -1,0 +1,3020 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="面向人工智能专业学生的 LLM 推理系统课程讲义，从 PagedAttention 到 RadixAttention，从原理到压测与选型。">
+      
+      
+        <meta name="author" content="LLM Inference Course">
+      
+      
+        <link rel="canonical" href="https://shizimiao.github.io/sglang-vs-vllm-lecture/01-foundations/">
+      
+      
+        <link rel="prev" href="../00-prerequisites/">
+      
+      
+        <link rel="next" href="../02-engine-architecture/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>第 1 章 从一次文本生成到推理服务 - LLM 推理系统：SGLang 与 vLLM 对比讲义</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#1" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href=".." title="LLM 推理系统：SGLang 与 vLLM 对比讲义" class="md-header__button md-logo" aria-label="LLM 推理系统：SGLang 与 vLLM 对比讲义" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            LLM 推理系统：SGLang 与 vLLM 对比讲义
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              第 1 章 从一次文本生成到推理服务
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到深色模式"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="切换到深色模式" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到浅色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换到浅色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ShiZiMiao/sglang-vs-vllm-lecture" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ShiZiMiao/sglang-vs-vllm-lecture
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="LLM 推理系统：SGLang 与 vLLM 对比讲义" class="md-nav__button md-logo" aria-label="LLM 推理系统：SGLang 与 vLLM 对比讲义" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    LLM 推理系统：SGLang 与 vLLM 对比讲义
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ShiZiMiao/sglang-vs-vllm-lecture" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ShiZiMiao/sglang-vs-vllm-lecture
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    课程首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开始之前
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    开始之前
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-prerequisites/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 0 章 预备知识：从“文字接龙”到 GPU 服务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第一部分 基础
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第一部分 基础
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 1 章 从一次文本生成到推理服务
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 1 章 从一次文本生成到推理服务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 一次请求的旅程
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.1 一次请求的旅程">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#110" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.0 先用餐厅类比理解
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#111" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.1 输入处理（服务员接单与翻译菜名）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#112-prefill-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.2 Prefill：把 prompt“读进去”（备菜）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#113-decode-token-token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.3 Decode：一个 token 一个 token 地“写”（逐道炒菜）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#114" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.4 输出处理（报菜名与打包）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-prefill-decode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 为什么 prefill 和 decode 是“两种生物”
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2 为什么 prefill 和 decode 是“两种生物”">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#120-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.0 先不用公式：GPU 的两个“瓶颈”
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#121" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.1 算术强度：每读一字节能做多少次浮点运算
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#122-prefill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.2 Prefill 为什么是计算密集型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#123-decode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.3 Decode 为什么是显存带宽密集型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#124" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.4 批处理如何改变这一切
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 KV Cache：用显存换计算
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.3 KV Cache：用显存换计算">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#131-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.1 没有 KV Cache 会怎样
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#132-token-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.2 单 token KV Cache 有多大
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#133-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.3 由 KV Cache 引出的核心问题
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4 衡量推理服务：四个延迟指标与两个吞吐指标
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4 衡量推理服务：四个延迟指标与两个吞吐指标">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#141-ttfttime-to-first-token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.1 TTFT（Time To First Token）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#142-tpot-itl-token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.2 TPOT / ITL（每输出 token 时间）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#143-e2e" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.3 E2E（端到端延迟）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#144-throughput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.4 吞吐（Throughput）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#145-goodput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.5 Goodput：真正有价值的吞吐
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#146-little" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.6 Little 定律：并发、吞吐与延迟的关系
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5 批处理：从静态到连续
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.5 批处理：从静态到连续">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#150" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5.0 先用餐厅类比理解批处理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#151" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5.1 静态批处理的问题
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#152-continuous-batching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5.2 连续批处理（Continuous Batching）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#153" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5.3 连续批处理的代价
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6 显存账本：一张 GPU 能塞下什么
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.6 显存账本：一张 GPU 能塞下什么">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#161" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6.1 权重
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#162-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6.2 KV Cache
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#163-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6.3 激活值与 workspace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#164-80-gb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6.4 一个 80 GB 卡的例子
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#165" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6.5 显存不够时，先动谁
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.7 推理引擎必须解决的五个问题
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.8 常见误区
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.9 本章小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-engine-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 2 章 推理引擎的通用架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第二部分 两个引擎
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第二部分 两个引擎
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-vllm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-sglang/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 4 章 SGLang：以 RadixAttention 与程序级优化为核心的推理栈
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第三部分 对比与实践
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第三部分 对比与实践
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-mechanism-comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 5 章 核心机制正面对比：页表 vs 基数树，通用调度 vs 缓存感知
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-features-ecosystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 6 章 功能、模型与生态对比
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-benchmarking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 7 章 性能评测：如何科学地比较 vLLM 与 SGLang
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-hands-on/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 8 章 动手实践：启动、调用、压测与调参
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第四部分 深入与选型
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    第四部分 深入与选型
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-source-code-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 9 章 源码地图：一次请求在两个引擎中的调用链
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../10-selection-and-future/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第 10 章 选型、演进与前沿
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    附录
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-a-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 A 术语表
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-b-exercises/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 B 习题参考答案与实验评分标准
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../appendix-c-references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    附录 C 参考资料
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 一次请求的旅程
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.1 一次请求的旅程">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#110" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.0 先用餐厅类比理解
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#111" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.1 输入处理（服务员接单与翻译菜名）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#112-prefill-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.2 Prefill：把 prompt“读进去”（备菜）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#113-decode-token-token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.3 Decode：一个 token 一个 token 地“写”（逐道炒菜）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#114" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.4 输出处理（报菜名与打包）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-prefill-decode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 为什么 prefill 和 decode 是“两种生物”
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2 为什么 prefill 和 decode 是“两种生物”">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#120-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.0 先不用公式：GPU 的两个“瓶颈”
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#121" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.1 算术强度：每读一字节能做多少次浮点运算
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#122-prefill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.2 Prefill 为什么是计算密集型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#123-decode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.3 Decode 为什么是显存带宽密集型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#124" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.4 批处理如何改变这一切
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 KV Cache：用显存换计算
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.3 KV Cache：用显存换计算">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#131-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.1 没有 KV Cache 会怎样
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#132-token-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.2 单 token KV Cache 有多大
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#133-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.3 由 KV Cache 引出的核心问题
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4 衡量推理服务：四个延迟指标与两个吞吐指标
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4 衡量推理服务：四个延迟指标与两个吞吐指标">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#141-ttfttime-to-first-token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.1 TTFT（Time To First Token）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#142-tpot-itl-token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.2 TPOT / ITL（每输出 token 时间）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#143-e2e" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.3 E2E（端到端延迟）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#144-throughput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.4 吞吐（Throughput）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#145-goodput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.5 Goodput：真正有价值的吞吐
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#146-little" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.6 Little 定律：并发、吞吐与延迟的关系
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5 批处理：从静态到连续
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.5 批处理：从静态到连续">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#150" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5.0 先用餐厅类比理解批处理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#151" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5.1 静态批处理的问题
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#152-continuous-batching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5.2 连续批处理（Continuous Batching）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#153" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5.3 连续批处理的代价
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6 显存账本：一张 GPU 能塞下什么
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.6 显存账本：一张 GPU 能塞下什么">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#161" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6.1 权重
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#162-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6.2 KV Cache
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#163-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6.3 激活值与 workspace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#164-80-gb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6.4 一个 80 GB 卡的例子
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#165" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.6.5 显存不够时，先动谁
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.7 推理引擎必须解决的五个问题
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.8 常见误区
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.9 本章小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考题
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="1">第 1 章 从一次文本生成到推理服务<a class="headerlink" href="#1" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>本章目标</strong>：建立 LLM 推理的“物理直觉”。读完本章，你应该能解释为什么推理引擎不是“把模型包一层 HTTP 服务”这么简单，并能手算一个模型的显存账本与理论吞吐上限。</p>
+<p><strong>先修知识</strong>：<a href="../00-prerequisites/">第 0 章</a> 的 token、注意力、GPU 显存。没读也没关系，本章会先复盘关键概念。</p>
+<p><strong>一句话概括</strong>：LLM 推理 = 先并行读 prompt（prefill），再逐 token 写答案（decode）；前者吃算力，后者吃显存带宽。</p>
+<p><strong>给零基础同学</strong>：本章公式不多，重点是三个问题：为什么分两阶段？KV Cache 为什么占显存？为什么 batch 能提高吞吐？遇到公式先看“一步步算”的表格，不要停在符号上。</p>
+</blockquote>
+<hr />
+<h2 id="11">1.1 一次请求的旅程<a class="headerlink" href="#11" title="Permanent link">&para;</a></h2>
+<p>假设用户在聊天框里输入：</p>
+<blockquote>
+<p>请用三句话解释什么是 KV Cache。</p>
+</blockquote>
+<p>从点击“发送”到屏幕上一个字一个字地蹦出回答，系统大致经历了下面四个阶段（图 1-1）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>用户输入
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>   │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>   ▼
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>┌─────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│ HTTP / API  │──▶│ Tokenizer    │──▶│ Prefill      │──▶│ Decode 循环  │
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│ 接收请求    │   │ 文本→token   │   │ 并行处理prompt│   │ 逐token生成  │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>└─────────────┘   └──────────────┘   └──────────────┘   └──────┬───────┘
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                                                                │
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                                      ┌──────────────┐          │
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                                      │ Detokenizer  │◀─────────┘
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>                                      │ token→文本   │
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>                                      └──────┬───────┘
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                                             ▼
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                                      流式返回给用户
+</code></pre></div>
+<p><em>图 1-1　一次请求的四个阶段</em></p>
+<p>可以把整个过程拆成四个阶段。</p>
+<h3 id="110">1.1.0 先用餐厅类比理解<a class="headerlink" href="#110" title="Permanent link">&para;</a></h3>
+<p>如果你觉得“HTTP、tokenizer、prefill、decode”这些词太抽象，可以先把它想成一家餐厅：</p>
+<table>
+<thead>
+<tr>
+<th>推理阶段</th>
+<th>餐厅类比</th>
+<th>发生什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTP / API</td>
+<td>服务员接单</td>
+<td>收到用户请求，记录要吃什么</td>
+</tr>
+<tr>
+<td>Tokenizer</td>
+<td>把菜名翻译成厨房能看懂的编号</td>
+<td>文本切成 token ID</td>
+</tr>
+<tr>
+<td>Prefill</td>
+<td>备菜：一次性把所有食材处理好</td>
+<td>并行处理整个 prompt，算出第一道菜</td>
+</tr>
+<tr>
+<td>Decode</td>
+<td>一道一道炒菜、上菜</td>
+<td>每次生成一个 token，循环很多次</td>
+</tr>
+<tr>
+<td>Detokenizer</td>
+<td>服务员把菜名报给客人</td>
+<td>token ID 还原成文字，流式返回</td>
+</tr>
+</tbody>
+</table>
+<p>两个关键体验指标也可以这样理解：</p>
+<ul>
+<li><strong>TTFT</strong>：从点菜到第一道菜上桌的时间，主要花在“备菜”（prefill）；</li>
+<li><strong>TPOT</strong>：第一道菜之后，两道菜之间的间隔，主要花在“逐道炒菜”（decode）。</li>
+</ul>
+<p>餐厅的厨房再大，也不可能让“炒下一道菜”和“备整桌菜”完全一样快。理解这一点，就理解了为什么推理引擎要把 prefill 和 decode 区别对待。</p>
+<h3 id="111">1.1.1 输入处理（服务员接单与翻译菜名）<a class="headerlink" href="#111" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Tokenization</strong>：把文本切成 token。例如“我喜欢吃苹果”可能被切成 <code>["我", "喜欢", "吃", "苹果"]</code>，具体取决于 tokenizer。一个 token 大约对应 0.5～1 个英文单词，中文通常 1～2 个汉字一个 token。</li>
+<li><strong>多模态预处理</strong>（如果输入含图片/音频）：把图像切成 patch，经视觉编码器变成 embedding。</li>
+<li><strong>模板拼接</strong>：聊天模型需要把多轮消息套进 chat template，加上 system prompt、角色标记等。你可以把它想成“厨房规定每道菜必须附一张标准订单”，不同模型的标准订单格式不同。</li>
+<li><strong>参数解析</strong>：<code>temperature</code>、<code>top_p</code>、<code>max_tokens</code>、停止词、JSON Schema 等。它们决定“菜要做多辣、做多少、什么时候停”。</li>
+</ul>
+<p>这些工作主要发生在 CPU（多模态编码器可能在 GPU），通常只占端到端延迟的一小部分，但在高并发下会成为不可忽视的 CPU 开销。就像餐厅再快，如果服务员接单、写单很慢，客人还是要等。</p>
+<h3 id="112-prefill-prompt">1.1.2 Prefill：把 prompt“读进去”（备菜）<a class="headerlink" href="#112-prefill-prompt" title="Permanent link">&para;</a></h3>
+<p>模型一次性处理整个 prompt 的所有 token，计算每一层的 Key 和 Value，并产出<strong>第一个</strong>输出 token 的 logits。这个阶段叫 <strong>prefill</strong>（预填充）。</p>
+<p>为什么能“一次性”处理？因为 prompt 的所有 token 已经知道了，注意力虽然要求每个 token 只能看前面的 token，但这并不妨碍把它们排成一个大矩阵一起算。就像备菜时，所有食材都摆在案板上，可以同时切。</p>
+<p>关键特征：</p>
+<ul>
+<li>所有 prompt token 可以<strong>并行</strong>计算，矩阵乘法的形状是“大矩阵 × 大矩阵”（GEMM，通用矩阵乘法）；</li>
+<li>GPU 的算力利用率高；</li>
+<li>计算量随 prompt 长度近似平方增长（注意力部分），也随长度线性增长（投影部分）；</li>
+<li>产出并保存所有 prompt token 的 KV Cache，供后续 decode 使用；</li>
+<li>用户感知到的第一个 token 延迟（TTFT）主要由这个阶段决定。</li>
+</ul>
+<h3 id="113-decode-token-token">1.1.3 Decode：一个 token 一个 token 地“写”（逐道炒菜）<a class="headerlink" href="#113-decode-token-token" title="Permanent link">&para;</a></h3>
+<p>从第二个 token 开始，模型每次只处理<strong>一个新 token</strong>，但需要读取此前所有 token 的 KV Cache 来做注意力。这个阶段叫 <strong>decode</strong>（解码）。</p>
+<p>为什么不能像 prefill 那样一次算很多？因为第 2 个 token 依赖第 1 个 token 的采样结果，第 3 个又依赖第 2 个……生成是串行的。你可以提前准备很多食材，但不能在客人还没点下一道菜时就把下一道炒了。</p>
+<p>关键特征：</p>
+<ul>
+<li>每步只生成一个 token（或投机解码时的几个候选 token）；</li>
+<li>矩阵乘法的形状退化为“矩阵 × 向量”（GEMV，矩阵乘向量）或“小批量 GEMM”；</li>
+<li>需要反复读取整个模型的权重和不断增长的 KV Cache，<strong>受显存带宽限制</strong>；</li>
+<li>必须循环 <code>输出长度</code> 次，且输出长度事先未知；</li>
+<li>用户感知到的“字与字之间的间隔”就是 decode 的每 token 延迟（TPOT/ITL）。</li>
+</ul>
+<h3 id="114">1.1.4 输出处理（报菜名与打包）<a class="headerlink" href="#114" title="Permanent link">&para;</a></h3>
+<p>采样得到 token ID 后，需要：</p>
+<ul>
+<li>去 tokenizer 里查表还原成文本；</li>
+<li>处理停止条件（EOS、停止字符串、最大长度）；</li>
+<li>处理流式输出、增量 detokenization；</li>
+<li>统计用量（prompt tokens / completion tokens）。</li>
+</ul>
+<p>看起来简单，但在每秒数千 token 的吞吐下，detokenization 和 JSON 序列化很容易成为 CPU 瓶颈。一个汉字可能由多个 token 拼成，或者一个 token 只对应半个 UTF-8 字符，所以不能“来一个 token 就立刻 decode 一个字符”，而要缓存不完整的字节。成熟的引擎会把这项工作与 GPU 计算重叠。</p>
+<hr />
+<h2 id="12-prefill-decode">1.2 为什么 prefill 和 decode 是“两种生物”<a class="headerlink" href="#12-prefill-decode" title="Permanent link">&para;</a></h2>
+<p>理解 prefill 与 decode 的差异，是理解所有推理优化（以及 vLLM/SGLang 设计差异）的起点。</p>
+<h3 id="120-gpu">1.2.0 先不用公式：GPU 的两个“瓶颈”<a class="headerlink" href="#120-gpu" title="Permanent link">&para;</a></h3>
+<p>把 GPU 想成一个工厂：</p>
+<ul>
+<li><strong>算力（FLOPS）</strong>：工厂里有多少工人、每秒能做多少次计算；</li>
+<li><strong>显存带宽（GB/s）</strong>：仓库门有多宽、每秒能搬多少原料进来。</li>
+</ul>
+<p>prefill 和 decode 的区别，就是“原料够不够工人吃”：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>一次处理多少 token</th>
+<th>读一次权重能服务多少 token</th>
+<th>更像谁</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Prefill</td>
+<td>整个 prompt（可能几千个）</td>
+<td>很多个</td>
+<td>工人忙不过来（算力瓶颈）</td>
+</tr>
+<tr>
+<td>Decode</td>
+<td>1 个（每条序列）</td>
+<td>1 个</td>
+<td>仓库门太窄（带宽瓶颈）</td>
+</tr>
+</tbody>
+</table>
+<p>举个具体例子：一个 7B 模型有约 14 GB 的 FP16 权重。</p>
+<ul>
+<li><strong>Prefill 1000 个 token</strong>：这 14 GB 权重读一次，可以参与 1000 个 token 的计算，平均“每读 1 字节做了很多活”，所以工人（算力）是瓶颈；</li>
+<li><strong>Decode 1 个 token</strong>：这 14 GB 权重还是要读一遍，但只服务 1 个 token，平均“每读 1 字节只做了一点点活”，所以仓库门（带宽）是瓶颈。</li>
+</ul>
+<p>这就是“算术强度”的直观含义：<strong>每从显存读 1 字节，能做多少次浮点运算</strong>。下面再把它写成公式。</p>
+<h3 id="121">1.2.1 算术强度：每读一字节能做多少次浮点运算<a class="headerlink" href="#121" title="Permanent link">&para;</a></h3>
+<p><strong>算术强度（arithmetic intensity, AI）</strong> 定义为：</p>
+<div class="arithmatex">\[
+AI = \frac{\text{浮点运算次数 FLOPs}}{\text{需要从显存读取的字节数 Bytes}} \quad [\text{FLOP/Byte}]
+\]</div>
+<p>GPU 有两个关键上限：</p>
+<ul>
+<li>峰值算力 <span class="arithmatex">\(F\)</span>（FLOP/s），例如 H100 SXM 的 FP16 张量算力约 <span class="arithmatex">\(10^{15}\)</span> FLOP/s 量级；</li>
+<li>显存带宽 <span class="arithmatex">\(B\)</span>（Byte/s），例如 H100 的 HBM3 带宽约 3.3 TB/s。</li>
+</ul>
+<p>在理想情况下，一个 kernel 能达到的性能是：</p>
+<div class="arithmatex">\[
+\text{Attained FLOP/s} = \min\left(F,\; B \times AI\right)
+\]</div>
+<p>这就是 <strong>Roofline 模型</strong>。当 <span class="arithmatex">\(AI\)</span> 低于“脊点” <span class="arithmatex">\(F/B\)</span> 时，kernel 受带宽限制；高于脊点时受算力限制。H100 的脊点大约是 <span class="arithmatex">\(10^{15} / 3.3\times10^{12} \approx 300\)</span> FLOP/Byte。</p>
+<h3 id="122-prefill">1.2.2 Prefill 为什么是计算密集型<a class="headerlink" href="#122-prefill" title="Permanent link">&para;</a></h3>
+<p>对一个长度为 <span class="arithmatex">\(L\)</span>、隐藏维度为 <span class="arithmatex">\(d\)</span> 的线性层，输入矩阵是 <span class="arithmatex">\(L \times d\)</span>，权重是 <span class="arithmatex">\(d \times d\)</span>。要理解 <span class="arithmatex">\(2Ld^2\)</span>，不要背公式，直接“逐元素数一遍”。</p>
+<p><strong>先约定口径</strong>：本讲义按“一次乘法 + 一次加法 = 2 FLOPs”计数。GPU 的 FMA（乘加融合）指令可能把一次乘法和一次加法合成一条指令，但学术/工程上通常仍按 2 FLOPs 计。也有资料把一次 FMA 算作 1 FLOP，此时数值会减半，比较时只要口径一致即可。</p>
+<h4 id="_1">第一步：输出矩阵有多大<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h4>
+<p>矩阵乘法：</p>
+<div class="arithmatex">\[
+Y = XW
+\]</div>
+<ul>
+<li><span class="arithmatex">\(X\)</span> 的形状是 <span class="arithmatex">\(L \times d\)</span>（<span class="arithmatex">\(L\)</span> 个 token，每个 token 一个 <span class="arithmatex">\(d\)</span> 维向量）；</li>
+<li><span class="arithmatex">\(W\)</span> 的形状是 <span class="arithmatex">\(d \times d\)</span>；</li>
+<li>所以 <span class="arithmatex">\(Y\)</span> 的形状是 <span class="arithmatex">\(L \times d\)</span>。</li>
+</ul>
+<p>也就是说，输出一共有：</p>
+<div class="arithmatex">\[
+L \times d \quad \text{个元素}
+\]</div>
+<h4 id="_2">第二步：每个输出元素要做多少次运算<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h4>
+<p>输出矩阵第 <span class="arithmatex">\(i\)</span> 行、第 <span class="arithmatex">\(j\)</span> 列的元素是：</p>
+<div class="arithmatex">\[
+y_{i,j} = \sum_{k=1}^{d} x_{i,k} \cdot w_{k,j}
+\]</div>
+<p>把它展开：</p>
+<div class="arithmatex">\[
+\begin{aligned}
+y_{i,j}
+&amp;= \sum_{k=1}^{d} x_{i,k}\, w_{k,j} \\
+&amp;= x_{i,1}w_{1,j} + x_{i,2}w_{2,j} + \cdots + x_{i,d}w_{d,j}
+\end{aligned}
+\]</div>
+<ul>
+<li>有 <span class="arithmatex">\(d\)</span> 次乘法；</li>
+<li>有 <span class="arithmatex">\(d-1\)</span> 次加法把它们加起来；</li>
+<li>合计约 <span class="arithmatex">\(2d\)</span> 次浮点运算。</li>
+</ul>
+<p>所以每个输出元素约需 <span class="arithmatex">\(2d\)</span> FLOPs。</p>
+<h4 id="_3">第三步：乘起来<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h4>
+<div class="arithmatex">\[
+\text{FLOPs} \approx (L \times d) \times (2d) = 2Ld^2
+\]</div>
+<p>更精确地写是 <span class="arithmatex">\(Ld(2d-1) = 2Ld^2 - Ld\)</span>；当 <span class="arithmatex">\(d\)</span> 很大时，<span class="arithmatex">\(Ld\)</span> 可以忽略，所以记作 <span class="arithmatex">\(2Ld^2\)</span>。</p>
+<blockquote>
+<p><strong>一句话记忆</strong>：<code>2</code> 是“乘 + 加”，<code>L</code> 是 token 数，<code>d²</code> 是“每个 token 的 d 维输入 × d 维输出”。<br />
+注意：这里的 <code>2</code> <strong>不是</strong>“两层”，也不是“K 和 V”。</p>
+</blockquote>
+<h4 id="2d2-2ld">第四步：那 <span class="arithmatex">\(2d^2\)</span> 字节的权重和 <span class="arithmatex">\(2Ld\)</span> 字节的输入呢<a class="headerlink" href="#2d2-2ld" title="Permanent link">&para;</a></h4>
+<p>权重 <span class="arithmatex">\(W\)</span> 有 <span class="arithmatex">\(d \times d = d^2\)</span> 个元素；FP16 每个元素 2 字节，所以：</p>
+<div class="arithmatex">\[
+\text{权重字节} = 2d^2
+\]</div>
+<p>输入 <span class="arithmatex">\(X\)</span> 有 <span class="arithmatex">\(L \times d\)</span> 个元素；FP16 每个元素 2 字节，所以：</p>
+<div class="arithmatex">\[
+\text{输入字节} = 2Ld
+\]</div>
+<p>如果还算上“把输出 <span class="arithmatex">\(Y\)</span> 写回显存”，还要再加 <span class="arithmatex">\(2Ld\)</span> 字节。本讲义在算算术强度时先只算读取，写成 <span class="arithmatex">\(2d^2 + 2Ld\)</span>；把写入也算上会变成 <span class="arithmatex">\(2d^2 + 4Ld\)</span>，结论不变。</p>
+<h4 id="_4">第五步：算术强度<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h4>
+<div class="arithmatex">\[
+AI \approx \frac{2Ld^2}{2d^2 + 2Ld}
+= \frac{Ld}{d+L}
+\]</div>
+<p>（分子分母同时约掉 <span class="arithmatex">\(2d\)</span>。）</p>
+<p><strong>代入具体数字</strong>：取 <span class="arithmatex">\(L=4096\)</span>，<span class="arithmatex">\(d=4096\)</span>。</p>
+<ul>
+<li>FLOPs：<span class="arithmatex">\(2 \times 4096^3 \approx 1.37 \times 10^{11}\)</span>，即约 <strong>137 GFLOP</strong>；</li>
+<li>读取字节：<span class="arithmatex">\(2d^2 + 2Ld = 2 \times 4096^2 + 2 \times 4096^2 \approx 6.7 \times 10^7\)</span> 字节，约 <strong>64 MiB</strong>；</li>
+<li>算术强度：<span class="arithmatex">\(1.37\times10^{11} / 6.7\times10^7 \approx 2048\)</span> FLOP/Byte。</li>
+</ul>
+<p>H100 的脊点约 300 FLOP/Byte，2048 远高于它，所以这个线性层是<strong>计算受限</strong>的，GPU 算力能被吃满。</p>
+<p><strong>反过来看 decode</strong>：如果 <span class="arithmatex">\(L=1\)</span>（一次只处理一个 token），</p>
+<ul>
+<li>FLOPs：<span class="arithmatex">\(2 \times 1 \times 4096^2 \approx 3.36 \times 10^7\)</span>，约 <strong>33.6 MFLOP</strong>；</li>
+<li>读取字节：权重仍是约 32 MiB，输入只有几 KB；</li>
+<li>算术强度：约 <strong>1 FLOP/Byte</strong>，远低于脊点。</li>
+</ul>
+<p>同一个线性层，<span class="arithmatex">\(L=4096\)</span> 时是计算受限，<span class="arithmatex">\(L=1\)</span> 时是带宽受限——这就是 prefill 和 decode 的本质区别。</p>
+<blockquote>
+<p><strong>补充</strong>：这里只数了一个线性层。一个 Transformer 层还有注意力矩阵（<span class="arithmatex">\(QK^T\)</span>、<span class="arithmatex">\(AV\)</span> 等），其 FLOPs 约与 <span class="arithmatex">\(L^2 d\)</span> 同量级；当 <span class="arithmatex">\(L\)</span> 很大时，注意力项可能超过线性层。但无论哪一项，prefill 的整体算术强度都随 <span class="arithmatex">\(L\)</span> 增长，结论不变。</p>
+</blockquote>
+<p><span class="arithmatex">\(L\)</span> 越大，<span class="arithmatex">\(AI\)</span> 越接近 <span class="arithmatex">\(d\)</span>（通常几千），远高于脊点。因此 prefill 的大矩阵乘法可以把 GPU 算力吃满。</p>
+<h3 id="123-decode">1.2.3 Decode 为什么是显存带宽密集型<a class="headerlink" href="#123-decode" title="Permanent link">&para;</a></h3>
+<p>Decode 每步只处理 1 个 token。对一个参数量为 <span class="arithmatex">\(P\)</span> 的模型：</p>
+<ul>
+<li><strong>FLOPs：约 <span class="arithmatex">\(2P\)</span></strong>（这里先忽略注意力部分，只看权重矩阵乘）。为什么？<span class="arithmatex">\(P\)</span> 个参数，每个参数要与输入做一次乘法，再累加到输出（一次加法）；“乘 + 加”算 2 FLOPs，所以是 <span class="arithmatex">\(2P\)</span>。如果 batch 为 <span class="arithmatex">\(B\)</span>，则是 <span class="arithmatex">\(2PB\)</span>。</li>
+<li><strong>需要读取：全部权重约 <span class="arithmatex">\(2P\)</span> 字节</strong>（<span class="arithmatex">\(P\)</span> 个参数 × 2 字节/FP16），外加 KV Cache。</li>
+</ul>
+<p>于是：</p>
+<div class="arithmatex">\[
+AI \approx \frac{2P\ \text{次浮点运算}}{2P\ \text{字节权重} + \text{KV 字节数}}
+\]</div>
+<p>注意分子和分母里的 <span class="arithmatex">\(2P\)</span> <strong>含义不同</strong>：分子是“<span class="arithmatex">\(2P\)</span> 次运算”，分母是“<span class="arithmatex">\(2P\)</span> 字节权重”，只是 FP16 下“每个参数 2 次运算、2 字节”恰好数值相同。上下文很短时，KV 项接近 0，所以 <span class="arithmatex">\(AI \approx 1\)</span>；上下文很长时，KV 项可能达到几百 MB，<span class="arithmatex">\(AI\)</span> 会明显低于 1。这远低于脊点 300。即使用上 3.3 TB/s 的带宽，7B 模型在 batch=1 时的理论上限也只有：</p>
+<div class="arithmatex">\[
+\frac{3.3\times10^{12}\text{ B/s}}{14\times10^{9}\text{ B/步}} \approx 236 \text{ token/s}
+\]</div>
+<p>而算力上限对应的时间只有 <span class="arithmatex">\(14\text{ GFLOP} / 10^{15}\text{ FLOP/s} = 0.014\)</span> ms，显存读取却要约 4.2 ms。batch=1 时一步只产 1 个 token，所以“236 token/s”也可以读作单请求的 TPOT 下限。<strong>99% 的时间在等显存。</strong></p>
+<h3 id="124">1.2.4 批处理如何改变这一切<a class="headerlink" href="#124" title="Permanent link">&para;</a></h3>
+<p>如果同时 decode <span class="arithmatex">\(N\)</span> 条序列，权重只需读一次，却可以服务 <span class="arithmatex">\(N\)</span> 个 token。不过，KV 是<strong>每条序列各自</strong>的，不能只算一份。</p>
+<p>设：</p>
+<ul>
+<li>模型参数量 <span class="arithmatex">\(P\)</span>；</li>
+<li>每条序列当前上下文长度 <span class="arithmatex">\(C\)</span>；</li>
+<li>单 token KV 字节数 <span class="arithmatex">\(k\)</span>（例如 Llama-3-8B 的 <span class="arithmatex">\(k=128\)</span> KiB）。</li>
+</ul>
+<p>则：</p>
+<ul>
+<li>FLOPs：<span class="arithmatex">\(N\)</span> 个 token × 每个 token <span class="arithmatex">\(2P\)</span> = <span class="arithmatex">\(2PN\)</span>；</li>
+<li>读取字节：权重 <span class="arithmatex">\(2P\)</span>（只读一次）+ <span class="arithmatex">\(N\)</span> 条序列的 KV <span class="arithmatex">\(N \cdot C \cdot k\)</span>。</li>
+</ul>
+<p>所以：</p>
+<div class="arithmatex">\[
+AI_{\text{batch}} \approx \frac{2PN}{2P + N \cdot C \cdot k}
+\]</div>
+<p>分子随 <span class="arithmatex">\(N\)</span> 线性增长，分母里权重是固定的、KV 也随 <span class="arithmatex">\(N\)</span> 线性增长。<span class="arithmatex">\(N\)</span> 很大时，权重项可以忽略，<span class="arithmatex">\(AI\)</span> 趋近于：</p>
+<div class="arithmatex">\[
+AI_{\text{batch}} \to \frac{2P}{C \cdot k}
+\]</div>
+<p>这个上限很有意思：<strong>它和 batch 无关，只和“模型参数 / 单序列 KV 大小”有关</strong>。上下文越长，上限越低。</p>
+<blockquote>
+<p>这里把每个 token 的 FLOPs 近似成 <span class="arithmatex">\(2P\)</span>，忽略了注意力本身随上下文增长的计算。长上下文时注意力项不可忽略，但 decode 的主要瓶颈通常仍是 KV 读取，所以这个近似用来判断趋势已经够用。</p>
+</blockquote>
+<p>以 7B 模型、假设其 KV 配置与 Llama-3-8B 相同（<span class="arithmatex">\(k=128\)</span> KiB）为例：</p>
+<table>
+<thead>
+<tr>
+<th>上下文 <span class="arithmatex">\(C\)</span></th>
+<th>无穷 batch 下的 AI 上限</th>
+<th>主要瓶颈</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>128</td>
+<td>约 835 FLOP/Byte</td>
+<td>可能计算受限（需要足够大的 batch）</td>
+</tr>
+<tr>
+<td>512</td>
+<td>约 209 FLOP/Byte</td>
+<td>仍偏带宽</td>
+</tr>
+<tr>
+<td>4096</td>
+<td>约 26 FLOP/Byte</td>
+<td>明显带宽受限</td>
+</tr>
+</tbody>
+</table>
+<p>（计算：<span class="arithmatex">\(2 \times 7\times10^9 / (C \times 131072)\)</span>。）</p>
+<p>所以在 4K 上下文下，即使把 batch 开到很大，decode 的 AI 也只有 20 多，远低于 H100 的脊点 300。<strong>增大 batch 能提高吞吐，但不能把长上下文 decode 变成计算受限</strong>——KV 读取才是硬上限。这也解释了为什么 KV 量化、减少 KV 读取、投机解码在长上下文场景如此重要。</p>
+<p>这就是推理引擎的核心矛盾：</p>
+<blockquote>
+<p><strong>吞吐靠批处理，延迟靠小批量；调度器的任务是在两者之间找平衡。</strong></p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>Prefill</th>
+<th>Decode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一次处理的 token 数</td>
+<td><span class="arithmatex">\(L\)</span>（整个 prompt）</td>
+<td>1（每序列）</td>
+</tr>
+<tr>
+<td>矩阵形状</td>
+<td>大 GEMM</td>
+<td>GEMV / 小 GEMM</td>
+</tr>
+<tr>
+<td>瓶颈</td>
+<td>算力</td>
+<td>显存带宽</td>
+</tr>
+<tr>
+<td>算术强度</td>
+<td>高（~<span class="arithmatex">\(L\)</span>）</td>
+<td>低（~1）</td>
+</tr>
+<tr>
+<td>GPU 利用率</td>
+<td>高</td>
+<td>低</td>
+</tr>
+<tr>
+<td>优化手段</td>
+<td>融合 kernel、chunked prefill、并行</td>
+<td>增大 batch、KV 量化、投机解码、减少 KV 读取</td>
+</tr>
+<tr>
+<td>影响的指标</td>
+<td>TTFT</td>
+<td>TPOT/ITL、吞吐</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="13-kv-cache">1.3 KV Cache：用显存换计算<a class="headerlink" href="#13-kv-cache" title="Permanent link">&para;</a></h2>
+<h3 id="131-kv-cache">1.3.1 没有 KV Cache 会怎样<a class="headerlink" href="#131-kv-cache" title="Permanent link">&para;</a></h3>
+<p>自回归生成的第 <span class="arithmatex">\(t\)</span> 步需要计算：</p>
+<div class="arithmatex">\[
+P(x_t \mid x_1,\dots,x_{t-1})
+\]</div>
+<p>注意力机制中，第 <span class="arithmatex">\(t\)</span> 个 token 的 Query 要与前 <span class="arithmatex">\(t-1\)</span> 个 token 的 Key 做点积，再对 Value 加权求和。如果不缓存，每一步都要重新计算所有历史 token 的 <span class="arithmatex">\(K\)</span> 和 <span class="arithmatex">\(V\)</span>：</p>
+<ul>
+<li>第 1 步算 1 个 token 的 K/V；</li>
+<li>第 2 步算 2 个；</li>
+<li>……</li>
+<li>第 <span class="arithmatex">\(T\)</span> 步算 <span class="arithmatex">\(T\)</span> 个。</li>
+</ul>
+<p>总计算量是 <span class="arithmatex">\(O(T^2)\)</span>。缓存之后，历史 K/V 只算一次，每步新增 1 个 token 的 K/V，K/V 投影的总计算量降为 <span class="arithmatex">\(O(T)\)</span>。代价是需要把 K/V 存在显存里，这就是 <strong>KV Cache</strong>。</p>
+<blockquote>
+<p><strong>严格说</strong>：这里降的是“K/V 投影”的计算量。注意力本身仍要每步对历史 KV 做加权，总注意力计算仍然与 <span class="arithmatex">\(T^2\)</span> 相关；但 decode 的瓶颈通常是读取 KV 的带宽，而不是这部分计算。很多资料把“K/V 不用重算”简写成“复杂度从 <span class="arithmatex">\(O(T^2)\)</span> 降到 <span class="arithmatex">\(O(T)\)</span>”，你要知道它指的是哪一部分。</p>
+<p>类比：读一本小说时，你不需要每读一页就从头再读一遍；KV Cache 就是你记在脑子里的“前文摘要”。但摘要要占脑容量，上下文越长，占得越多。</p>
+</blockquote>
+<h3 id="132-token-kv-cache">1.3.2 单 token KV Cache 有多大<a class="headerlink" href="#132-token-kv-cache" title="Permanent link">&para;</a></h3>
+<p>对采用标准多头注意力（MHA）的模型，每层每个 token 需要存：</p>
+<ul>
+<li>Key：<span class="arithmatex">\(H_{kv}\)</span> 个头 × 每头维度 <span class="arithmatex">\(d_{head}\)</span> 个数；</li>
+<li>Value：同样多。</li>
+</ul>
+<p>因此单 token 的 KV Cache 大小为：</p>
+<div class="arithmatex">\[
+\boxed{\text{KV}_{\text{per token}} = 2 \times L_{\text{layers}} \times H_{kv} \times d_{head} \times b}
+\]</div>
+<p>其中：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>含义</th>
+<th>对 Llama-3-8B 的取值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(2\)</span></td>
+<td>Key 和 Value 各一份</td>
+<td>2</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(L_{\text{layers}}\)</span></td>
+<td>Transformer 层数</td>
+<td>32</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(H_{kv}\)</span></td>
+<td>KV 头数（不是 Query 头数）</td>
+<td>8</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(d_{head}\)</span></td>
+<td>每个头的维度</td>
+<td>128</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(b\)</span></td>
+<td>每个元素的字节数</td>
+<td>BF16 = 2</td>
+</tr>
+</tbody>
+</table>
+<p><strong>这个公式为什么长这样？</strong></p>
+<ol>
+<li><strong>每层都要存</strong>：每一层都有自己的 K/V，所以乘层数；</li>
+<li><strong>每个 KV 头都要存</strong>：多头注意力里，每个头有独立的 K/V，所以乘 KV 头数；</li>
+<li><strong>每个头有 <span class="arithmatex">\(d_{head}\)</span> 个数字</strong>：所以再乘 head 维度；</li>
+<li><strong>K 和 V 各一份</strong>：所以最前面乘 2；</li>
+<li><strong>每个数字占 <span class="arithmatex">\(b\)</span> 字节</strong>：FP16/BF16 是 2 字节，FP8 是 1 字节。</li>
+</ol>
+<p><strong>手算 Llama-3-8B（一步一步来）</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>计算</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. K 和 V 两份</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>2. 32 层</td>
+<td>2 × 32</td>
+<td>64</td>
+</tr>
+<tr>
+<td>3. 每层 8 个 KV 头</td>
+<td>64 × 8</td>
+<td>512</td>
+</tr>
+<tr>
+<td>4. 每个头 128 维</td>
+<td>512 × 128</td>
+<td>65,536 个数字</td>
+</tr>
+<tr>
+<td>5. 每个数字 2 字节（BF16）</td>
+<td>65,536 × 2</td>
+<td>131,072 字节</td>
+</tr>
+<tr>
+<td>6. 换算成 KiB</td>
+<td>131,072 / 1024</td>
+<td>128 KiB</td>
+</tr>
+</tbody>
+</table>
+<p>所以 Llama-3-8B 每存一个 token 的 KV，就要占 <strong>128 KiB</strong>。8K 上下文就是：</p>
+<div class="arithmatex">\[
+8192 \times 128\text{ KiB} = 1{,}048{,}576\text{ KiB} = 1\text{ GiB}
+\]</div>
+<p>一条 8K 序列就要 1 GiB，32 条就是 32 GiB。这就是为什么长上下文和大并发会迅速吃光显存。</p>
+<p><strong>例 2：Llama-2-7B</strong>（32 层，32 个 KV 头，head_dim=128，FP16）</p>
+<div class="arithmatex">\[
+2 \times 32 \times 32 \times 128 \times 2 = 512 \text{ KiB/token}
+\]</div>
+<p>是 Llama-3-8B 的 4 倍。差别来自 <strong>GQA（Grouped Query Attention）</strong>：</p>
+<ul>
+<li><strong>MHA（多头注意力）</strong>：每个 Query 头都有自己独立的 K/V，KV 头数 = Query 头数；</li>
+<li><strong>GQA（分组查询注意力）</strong>：把 Query 头分组，每组共享一套 K/V，KV 头数更少。</li>
+</ul>
+<p>类比：32 个学生写报告，MHA 是每人买一套参考书（32 套），GQA 是每 4 人共用一套（8 套）。查询（写报告）还是 32 个人，但参考书（KV）只需要 8 套，显存直接省了 4 倍。Llama-3-8B 让多个 Query 头共享一组 KV 头，把 KV 头数从 32 降到 8。</p>
+<p><strong>例 3：DeepSeek-V3 的 MLA</strong>（61 层，KV 压缩维度 512 + RoPE 维度 64，BF16）</p>
+<div class="arithmatex">\[
+(512 + 64) \times 2 \times 61 = 70{,}272 \text{ B} \approx 68.6 \text{ KiB/token}
+\]</div>
+<p>注意这里没有乘 2：MLA 缓存的是压缩后的 latent（外加 RoPE 部分），不是传统意义上 K、V 各存一份。</p>
+<p>如果它用 128 个 KV 头的 MHA，单 token 约为 <span class="arithmatex">\(2 \times 61 \times 128 \times 128 \times 2 \approx 3.8\text{ MiB}\)</span>。MLA 把 KV Cache 压缩了约 56 倍，这是 DeepSeek 能支持长上下文和大并发的重要原因之一。</p>
+<h3 id="133-kv-cache">1.3.3 由 KV Cache 引出的核心问题<a class="headerlink" href="#133-kv-cache" title="Permanent link">&para;</a></h3>
+<p>KV Cache 不是“存下来就完了”，它带来了一连串系统问题：</p>
+<ol>
+<li><strong>分配</strong>：每条序列长度不同、动态增长，如何分配显存而不产生碎片？</li>
+<li><strong>共享</strong>：多个请求有相同 system prompt，能否共用一份 KV？</li>
+<li><strong>回收</strong>：序列结束后，显存如何归还？被谁驱逐？</li>
+<li><strong>预知</strong>：生成长度未知，如何避免“预留最大长度”造成浪费？</li>
+<li><strong>并行</strong>：多张 GPU 上，KV 放在哪、怎么传？</li>
+</ol>
+<p>vLLM 的 PagedAttention 和 SGLang 的 RadixAttention，本质上是对第 1、2、3 题给出的两种不同答案。第 3、4 章会详细展开。</p>
+<hr />
+<h2 id="14">1.4 衡量推理服务：四个延迟指标与两个吞吐指标<a class="headerlink" href="#14" title="Permanent link">&para;</a></h2>
+<h3 id="141-ttfttime-to-first-token">1.4.1 TTFT（Time To First Token）<a class="headerlink" href="#141-ttfttime-to-first-token" title="Permanent link">&para;</a></h3>
+<p>从请求到达系统，到客户端收到第一个输出 token 的时间。包含：</p>
+<div class="arithmatex">\[
+\text{TTFT} = \text{排队} + \text{tokenize} + \text{prefill} + \text{采样} + \text{网络}
+\]</div>
+<p>TTFT 决定用户“等待回答开始”的体感。对话场景通常要求 P50 在几百毫秒、P99 在 1～2 秒以内；长文档摘要可以放宽。</p>
+<p>把一次输出 5 个 token 的请求画在时间轴上，如图 1-2 所示：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>t0                 t1        t2        t3        t4        t5
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>│                   │         │         │         │         │
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>请求到达 ──排队+prefill──▶ 第1个token 第2个     第3个     第4个     第5个
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>│                   │         │         │         │         │
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>└──── TTFT ────────┘         └── ITL ──┘
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>                            └────────── TPOT ──────────────┘
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>└──────────────────────── E2E ────────────────────────────────────────┘
+</code></pre></div>
+<p><em>图 1-2　TTFT、ITL、TPOT 与 E2E 的时间轴</em></p>
+<ul>
+<li><strong>TTFT</strong> = t1 - t0：等第一个字；</li>
+<li><strong>ITL</strong> = 相邻两个 token 的间隔（t2-t1、t3-t2……）；</li>
+<li><strong>TPOT</strong> = (t5 - t1) / (5 - 1)：平均每个输出 token 的时间；</li>
+<li><strong>E2E</strong> = t5 - t0：从请求到最后一个 token。</li>
+</ul>
+<p>第一道菜等得久（TTFT），后面上菜快（TPOT/ITL）——这正是餐厅类比里的体验。</p>
+<h3 id="142-tpot-itl-token">1.4.2 TPOT / ITL（每输出 token 时间）<a class="headerlink" href="#142-tpot-itl-token" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>TPOT（Time Per Output Token）</strong>：平均每个输出 token 的耗时：</li>
+</ul>
+<div class="arithmatex">\[
+\text{TPOT} = \frac{\text{E2E} - \text{TTFT}}{N_{\text{out}} - 1}
+\]</div>
+<p>为什么要减 1？因为 <span class="arithmatex">\(N_{\text{out}}\)</span> 个 token 之间有 <span class="arithmatex">\(N_{\text{out}}-1\)</span> 个间隔；而第一个 token 的时间已经包含在 TTFT 里，所以用“第一个 token 之后的总时间”除以“间隔数”。如果 <span class="arithmatex">\(N_{\text{out}}=1\)</span>，分母为 0，TPOT 没有定义（只有一个 token，谈不上“每 token 间隔”）。</p>
+<ul>
+<li><strong>ITL（Inter-Token Latency）</strong>：相邻两个 token 的时间间隔。TPOT 是平均值，ITL 关注分布，尤其是 P99。</li>
+</ul>
+<p>用户感知的“打字速度”由 TPOT/ITL 决定。人类阅读速度约为 10～20 token/s，因此 TPOT 低于 50～100 ms 通常已经“够快”；但在代码补全、实时字幕等场景，P99 ITL 的抖动会很敏感。</p>
+<h3 id="143-e2e">1.4.3 E2E（端到端延迟）<a class="headerlink" href="#143-e2e" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[
+\text{E2E} = \text{TTFT} + \text{TPOT} \times (N_{\text{out}} - 1)
+\]</div>
+<p>注意 E2E 与输出长度强相关。比较两个系统时，必须固定输入/输出长度分布，否则没有意义。</p>
+<h3 id="144-throughput">1.4.4 吞吐（Throughput）<a class="headerlink" href="#144-throughput" title="Permanent link">&para;</a></h3>
+<p>常见三种口径：</p>
+<ul>
+<li><strong>输出 token/s</strong>：每秒生成多少 output token；</li>
+<li><strong>总 token/s</strong>：prompt + output 都算；</li>
+<li><strong>请求/s</strong>：每秒完成多少请求。</li>
+</ul>
+<p>报告吞吐时必须说明：单卡还是整机、什么模型、什么输入输出长度、什么并发、是否含排队。脱离这些条件的“吞吐提升 10 倍”没有意义。</p>
+<h3 id="145-goodput">1.4.5 Goodput：真正有价值的吞吐<a class="headerlink" href="#145-goodput" title="Permanent link">&para;</a></h3>
+<p>真实服务有 SLO（Service Level Objective），例如“TTFT P99 &lt; 1s 且 TPOT P99 &lt; 100 ms”。<strong>Goodput</strong> 指单位时间内满足 SLO 的请求数或 token 数。</p>
+<p>一个系统可能吞吐很高，但大量请求超时；另一个系统吞吐略低，却能把 P99 压在 SLO 内。显然后者更有价值。第 7 章会详细讲如何测 goodput。</p>
+<h3 id="146-little">1.4.6 Little 定律：并发、吞吐与延迟的关系<a class="headerlink" href="#146-little" title="Permanent link">&para;</a></h3>
+<p>对稳定系统：</p>
+<div class="arithmatex">\[
+L = \lambda \times W
+\]</div>
+<p>其中 <span class="arithmatex">\(L\)</span> 是系统内平均请求数（并发），<span class="arithmatex">\(\lambda\)</span> 是到达率（请求/s），<span class="arithmatex">\(W\)</span> 是平均停留时间（s）。</p>
+<p>例：每秒到达 10 个请求，平均每个请求耗时 2 秒，则系统平均有 20 个请求在飞。若 GPU 只能同时高效服务 8 个，队列就会不断增长——这就是为什么容量规划不能只看单请求延迟。</p>
+<hr />
+<h2 id="15">1.5 批处理：从静态到连续<a class="headerlink" href="#15" title="Permanent link">&para;</a></h2>
+<h3 id="150">1.5.0 先用餐厅类比理解批处理<a class="headerlink" href="#150" title="Permanent link">&para;</a></h3>
+<p>假设餐厅只有一张大桌：</p>
+<ul>
+<li><strong>静态批处理</strong>：凑齐 8 个人才开桌，所有人必须等最慢的人吃完才能一起走；新客人只能在门口等下一桌。</li>
+<li><strong>连续批处理</strong>：谁吃完谁走，空出的座位立刻让新客人坐下；厨房每一步都按“当前还在吃的人”重新安排。</li>
+</ul>
+<p>显然，连续批处理的座位利用率更高，新客人也不用等一整桌吃完。但餐厅要额外管理“谁吃到哪了、谁的菜还没上、座位怎么回收”——这就是推理引擎的调度与 KV 管理。</p>
+<h3 id="151">1.5.1 静态批处理的问题<a class="headerlink" href="#151" title="Permanent link">&para;</a></h3>
+<p>最朴素的做法是攒一批请求，一起送进 GPU，等整批结束后再送下一批（图 1-3）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>时间 →
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>请求 A: [Prefill][D][D][D][D][D][D][D]        ← 输出 8 个 token
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>请求 B: [Prefill][D][D][done]                  ← 输出 3 个 token，之后槽位空闲
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>请求 C: [Prefill][D][D][D][D][D][done]         ← 输出 6 个 token
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>         └──────────── 整批必须等最长的 A ────────────┘
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>下一批: 等待 A 结束后才能开始
+</code></pre></div>
+<p><em>图 1-3　静态批处理的时间线</em></p>
+<p>三个严重浪费：</p>
+<ol>
+<li><strong>填充浪费</strong>：为了组成矩阵，短 prompt 要 padding 到最长 prompt 的长度；</li>
+<li><strong>尾部空闲</strong>：短序列提前结束，GPU 槽位空转，直到最长序列结束；</li>
+<li><strong>队头阻塞</strong>：新请求必须等整批结束才能进入，TTFT 被拉长。</li>
+</ol>
+<h3 id="152-continuous-batching">1.5.2 连续批处理（Continuous Batching）<a class="headerlink" href="#152-continuous-batching" title="Permanent link">&para;</a></h3>
+<p>核心思想：<strong>把调度粒度从“一批请求”降到“一次迭代（一个 decode step）”</strong>。每一步都可以：</p>
+<ul>
+<li>移除已经结束的序列；</li>
+<li>加入 waiting 队列中的新序列；</li>
+<li>对正在运行的序列各生成一个 token。</li>
+</ul>
+<p>这就是 2022 年 Orca 系统提出的 <strong>iteration-level scheduling</strong>，也是今天所有主流引擎的基石（图 1-4）。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>时间 →
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>请求 A: [P][D][D][D][D][D][D][D]
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>请求 B:    [P][D][D][done]
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>请求 C:       [P][D][D][D][D][D][done]
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>请求 D:          [P][D][D][D][D]...
+</code></pre></div>
+<p><em>图 1-4　连续批处理的时间线</em></p>
+<p>每一步的 batch 组成都可以不同，GPU 利用率显著提高，TTFT 也不再被整批拖累。</p>
+<h3 id="153">1.5.3 连续批处理的代价<a class="headerlink" href="#153" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>变长 KV</strong>：每条序列的 KV 长度不同、动态增长，必须有一种灵活的内存管理机制（→ PagedAttention / RadixAttention）；</li>
+<li><strong>调度复杂</strong>：每一步都要决定“谁上、谁下、prefill 和 decode 怎么混”；</li>
+<li><strong>延迟与吞吐权衡</strong>：batch 越大，吞吐越高，但单 token 延迟可能变差；</li>
+<li><strong>公平性</strong>：长请求可能长期占用资源，短请求被饿死。</li>
+</ul>
+<p>可以说，<strong>连续批处理是“需求”，PagedAttention 是“满足需求的内存管理方案”</strong>。这也解释了为什么 vLLM 的论文标题把两者放在一起：<em>Efficient Memory Management for Large Language Model Serving with PagedAttention</em>。</p>
+<hr />
+<h2 id="16-gpu">1.6 显存账本：一张 GPU 能塞下什么<a class="headerlink" href="#16-gpu" title="Permanent link">&para;</a></h2>
+<p>部署时最常见的错误是“模型权重能放下就能跑”。实际上显存被至少五部分瓜分。你可以把它想成<strong>合租预算</strong>（图 1-5）：</p>
+<ul>
+<li>模型权重 = 房租，必须先付；</li>
+<li>激活/workspace = 水电燃气，平时不多，做饭（prefill）时峰值很高；</li>
+<li>CUDA Graph/通信缓冲区 = 家具，占一块固定空间；</li>
+<li>KV Cache = 活动空间，住的人越多、待得越久，占得越大；</li>
+<li>碎片 = 押金和边角料，看着没用到，实际上拿不回来。</li>
+</ul>
+<p>“权重放得下”只说明房租付得起，不代表所有客人都住得下。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>┌──────────────────────────────────────────────┐
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>│ 1. 模型权重（Weights）                        │
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>│ 2. KV Cache（动态增长，推理引擎的核心资源）    │
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>│ 3. 激活值 / 临时 workspace（prefill 峰值）     │
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>│ 4. CUDA Graph、通信缓冲区、cuBLAS workspace    │
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>│ 5. 碎片与保留（allocator reserved but unused） │
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>└──────────────────────────────────────────────┘
+</code></pre></div>
+<p><em>图 1-5　显存账本的五个部分</em></p>
+<h3 id="161">1.6.1 权重<a class="headerlink" href="#161" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[
+M_{\text{weights}} = P \times b
+\]</div>
+<ul>
+<li><span class="arithmatex">\(P\)</span>：参数个数（例如 7B 模型 <span class="arithmatex">\(P=7\times10^9\)</span>）；</li>
+<li><span class="arithmatex">\(b\)</span>：每个参数占的字节数（FP16/BF16 为 2，FP8 为 1，INT4 约 0.5）；</li>
+<li>
+<p>两者相乘就是权重总字节数。</p>
+</li>
+<li>
+<p>7B FP16：<span class="arithmatex">\(7\times10^9 \times 2 = 14\)</span> GB；</p>
+</li>
+<li>70B FP16：140 GB（单卡 80 GB 放不下，需要 TP≥2 或量化）；</li>
+<li>7B INT4：约 3.5 GB（实际还有 scale/zero-point 开销）。</li>
+</ul>
+<h3 id="162-kv-cache">1.6.2 KV Cache<a class="headerlink" href="#162-kv-cache" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[
+M_{\text{KV}} = N_{\text{seq}} \times \text{context length} \times \text{KV}_{\text{per token}}
+\]</div>
+<ul>
+<li><span class="arithmatex">\(N_{\text{seq}}\)</span>：同时有多少条序列；</li>
+<li>context length：每条序列平均有多少个 token（prompt + 已生成）；</li>
+<li><span class="arithmatex">\(\text{KV}_{\text{per token}}\)</span>：每个 token 的 KV 字节数（前面算过，Llama-3-8B 是 128 KiB）。</li>
+</ul>
+<p>三者相乘，就是 KV Cache 的总字节数。注意这里的 context length 是<strong>实际长度</strong>，不是模型支持的最大长度；如果按最大长度预留，就会浪费大量显存。</p>
+<h3 id="163-workspace">1.6.3 激活值与 workspace<a class="headerlink" href="#163-workspace" title="Permanent link">&para;</a></h3>
+<p>Prefill 时，中间激活值与“本步 token 数 × hidden size”成正比。长 prompt、大 batch 会让峰值很高。<strong>Chunked prefill</strong> 的一个重要动机就是限制单步处理的 token 数，从而压低激活峰值，避免 OOM。</p>
+<h3 id="164-80-gb">1.6.4 一个 80 GB 卡的例子<a class="headerlink" href="#164-80-gb" title="Permanent link">&para;</a></h3>
+<p>以 Llama-3-8B、BF16、80 GB A100 为例：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>估算</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>权重</td>
+<td>16 GB</td>
+</tr>
+<tr>
+<td>激活/workspace</td>
+<td>4 GB</td>
+</tr>
+<tr>
+<td>CUDA Graph / 通信 / 上下文</td>
+<td>3 GB</td>
+</tr>
+<tr>
+<td>碎片与安全余量</td>
+<td>5 GB</td>
+</tr>
+<tr>
+<td><strong>可用于 KV</strong></td>
+<td><strong>约 52 GB</strong></td>
+</tr>
+</tbody>
+</table>
+<p>单 token 128 KiB，则 KV 池约：</p>
+<div class="arithmatex">\[
+52 \times 1024^3 / 131072 \approx 425{,}984 \text{ tokens}
+\]</div>
+<p>这个除法在算什么？</p>
+<ul>
+<li>分子 <span class="arithmatex">\(52 \times 1024^3\)</span>：52 GiB 换算成字节；</li>
+<li>分母 <span class="arithmatex">\(131072\)</span>：每个 token 的 KV 字节数（128 KiB = 131072 B）；</li>
+<li>相除得到“这些显存能存多少个 token”。</li>
+</ul>
+<p>如果每条请求平均 4K 上下文，理论上可同时容纳约 104 条。实际还要扣除块内碎片、前缀缓存、调度预留，通常会更少。</p>
+<p>这也解释了为什么推理引擎的显存利用率参数（vLLM 的 <code>gpu_memory_utilization</code>、SGLang 的 <code>mem_fraction_static</code>）如此重要：它决定了“权重之外还能拿多少来做 KV 池”。设得太高容易 OOM，设得太低浪费显存。</p>
+<h3 id="165">1.6.5 显存不够时，先动谁<a class="headerlink" href="#165" title="Permanent link">&para;</a></h3>
+<p>显存不够时，不要盲目调参数。按“影响大小 + 风险”排序：</p>
+<table>
+<thead>
+<tr>
+<th>优先级</th>
+<th>手段</th>
+<th>影响</th>
+<th>风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>降低 <code>max_num_seqs</code> / <code>max-running-requests</code></td>
+<td>直接减少并发 KV</td>
+<td>吞吐下降</td>
+</tr>
+<tr>
+<td>2</td>
+<td>降低 <code>max_model_len</code> / <code>context-length</code></td>
+<td>直接减少单条 KV</td>
+<td>长上下文请求被拒</td>
+</tr>
+<tr>
+<td>3</td>
+<td>开启/调小 chunked prefill</td>
+<td>降低激活峰值</td>
+<td>长 prompt TTFT 变长</td>
+</tr>
+<tr>
+<td>4</td>
+<td>降低显存利用率参数</td>
+<td>给运行时留余量</td>
+<td>可用 KV 变少</td>
+</tr>
+<tr>
+<td>5</td>
+<td>KV Cache FP8</td>
+<td>KV 减半</td>
+<td>精度风险</td>
+</tr>
+<tr>
+<td>6</td>
+<td>权重量化（FP8/AWQ/GPTQ）</td>
+<td>权重减半/更多</td>
+<td>精度与 kernel 兼容性</td>
+</tr>
+<tr>
+<td>7</td>
+<td>增大 TP</td>
+<td>权重和 KV 分摊到多卡</td>
+<td>通信开销、成本</td>
+</tr>
+</tbody>
+</table>
+<p>一个经验：<strong>先降并发/上下文，再考虑量化</strong>。量化的收益大，但引入精度和兼容性风险；并发和上下文是“业务可调”的旋钮。</p>
+<hr />
+<h2 id="17">1.7 推理引擎必须解决的五个问题<a class="headerlink" href="#17" title="Permanent link">&para;</a></h2>
+<p>把上面的分析收拢，一个 LLM 推理引擎至少要解决五类问题。后续所有章节都可以挂在这张“问题地图”上：</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>问题</th>
+<th>具体内容</th>
+<th>典型技术</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>KV 内存管理</strong></td>
+<td>分配、共享、回收、驱逐、碎片</td>
+<td>PagedAttention、RadixAttention、前缀缓存、分层缓存</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>调度</strong></td>
+<td>每步选谁、prefill/decode 如何混、抢占、公平性</td>
+<td>Continuous batching、chunked prefill、LPM、优先级</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>执行</strong></td>
+<td>注意力 kernel、采样、CUDA Graph、CPU/GPU 重叠</td>
+<td>FlashAttention、FlashInfer、CUDA Graph、torch.compile</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>分布式</strong></td>
+<td>权重切分、KV 切分、通信、PD 分离</td>
+<td>TP/PP/DP/EP、NCCL、KV 传输</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>可编程性</strong></td>
+<td>API、结构化输出、多模态、前端语言</td>
+<td>OpenAI 兼容接口、XGrammar、SGLang DSL</td>
+</tr>
+</tbody>
+</table>
+<p><strong>vLLM 与 SGLang 的共同点</strong>：都建立在 continuous batching 之上，都用 GPU kernel 做分页/变长 attention（paged/varlen attention），都支持 OpenAI API、张量并行、量化、投机解码。</p>
+<p><strong>主要分野</strong>：</p>
+<ul>
+<li>问题 1：vLLM 用<strong>固定大小的块 + 块表 + 哈希前缀缓存</strong>；SGLang 用<strong>token 级基数树索引 + 底层分页/槽位池 + 引用计数 + LRU</strong>。树是索引，KV 仍然要按页或槽位分配，两者不是“分页 vs 不分页”的对立。</li>
+<li>问题 2：vLLM 默认 <strong>FCFS + token budget</strong>；SGLang 默认也是 <strong>FCFS</strong>，但额外提供 LPM/DFS-weight 等<strong>可选</strong>的缓存感知策略。注意“SGLang 默认 LPM”是早期版本（如 0.4.0）的说法；0.4.6 起（含 0.5.23）已改为默认 FCFS，需要显式指定 <code>--schedule-policy lpm</code> 才会启用。</li>
+<li>问题 5：SGLang 额外提供了一套 Python 内嵌的前端语言，用于表达分支、选择、约束等程序结构；vLLM 更聚焦于通用 serving。</li>
+</ul>
+<hr />
+<h2 id="18">1.8 常见误区<a class="headerlink" href="#18" title="Permanent link">&para;</a></h2>
+<p><strong>误区 1：模型权重能放下，服务就能跑。</strong><br />
+不对。权重只占显存的一部分，KV Cache、激活峰值、CUDA Graph、碎片都要占空间。24 GB 卡放 14 GB 的 7B 权重，看起来还剩 10 GB，但 8K 上下文 × 64 并发可能需要几十 GB 的 KV。</p>
+<p><strong>误区 2：batch 越大，吞吐越高，所以越大越好。</strong><br />
+吞吐通常随 batch 上升，但 TPOT/ITL 也会变差，P99 尾延迟更敏感。生产要看 SLO 下的 goodput，而不是单一的“最大吞吐”。</p>
+<p><strong>误区 3：KV Cache 只影响显存，不影响速度。</strong><br />
+KV Cache 既要占显存，又要在 decode 每步被读取。上下文越长，读 KV 的带宽开销越大，TPOT 越容易变差。</p>
+<p><strong>误区 4：TTFT 低就代表服务快。</strong><br />
+TTFT 只衡量“第一个字”，如果输出很长，用户大部分时间在等后面的 token。要同时看 TTFT、TPOT/ITL 和 E2E。</p>
+<p><strong>误区 5：量化一定会明显降智，或者 FP8 一定更快。</strong><br />
+量化是否降智取决于方法、校准数据和任务；FP8 是否更快取决于 GPU 架构、kernel 支持和瓶颈位置。都要实测。</p>
+<p><strong>误区 6：平均延迟能代表用户体验。</strong><br />
+平均值会被少数极慢请求拉高或掩盖。生产更关注 P50/P99，尤其是 P99 尾延迟。</p>
+<p><strong>误区 7：prefill 和 decode 可以用同一套优化。</strong><br />
+Prefill 吃算力，适合大矩阵、chunked prefill、并行；decode 吃带宽，适合大 batch、KV 量化、投机解码。两者目标不同，甚至互相冲突。</p>
+<hr />
+<h2 id="19">1.9 本章小结<a class="headerlink" href="#19" title="Permanent link">&para;</a></h2>
+<ul>
+<li>LLM 推理分为 <strong>prefill</strong>（并行读 prompt，计算密集）和 <strong>decode</strong>（逐 token 生成，带宽密集）两个阶段。</li>
+<li><strong>KV Cache</strong> 把历史 K/V 存下来，把 K/V 投影的 <span class="arithmatex">\(O(T^2)\)</span> 重算降为 <span class="arithmatex">\(O(T)\)</span>，代价是显存；注意力对历史 KV 的加权仍与 <span class="arithmatex">\(T^2\)</span> 相关。</li>
+<li>单 token KV 大小由层数、KV 头数、head_dim、精度决定；GQA/MLA 能大幅压缩。</li>
+<li>核心指标：<strong>TTFT、TPOT/ITL、E2E、吞吐、goodput</strong>；用 Little 定律做容量规划。</li>
+<li><strong>Continuous batching</strong> 把调度粒度降到每一步，是吞吐提升的关键，但也带来变长 KV 管理问题。</li>
+<li>显存账本 = 权重 + KV + 激活 + 运行时开销 + 碎片；KV 池大小决定了最大并发。</li>
+<li>推理引擎的五大问题：KV 管理、调度、执行、分布式、可编程性——这就是后续章节的路线图。</li>
+</ul>
+<blockquote>
+<p><strong>用大白话再说一遍</strong>：模型先把 prompt 一口气读进去（prefill），像备菜，费算力；然后一个字一个字往外蹦（decode），像炒菜，费显存带宽。KV Cache 是记下来的“前文笔记”，batch 是“同时炒几桌菜”。推理引擎就是那个既要让厨房不闲着、又要让客人别等太久的调度系统。</p>
+</blockquote>
+<hr />
+<h2 id="_5">思考题<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<ol>
+<li>一个 13B 模型，40 层，32 个 KV 头，head_dim=128，FP16。问：单 token KV Cache 多大？若一张 80 GB 卡留给 KV 50 GB，最多能同时服务多少条 8K 上下文的序列？</li>
+<li>为什么 prefill 阶段 GPU 利用率高，而 decode 阶段低？如果把 batch 从 1 增加到 64，decode 的算术强度如何变化？什么时候会重新变成计算受限？</li>
+<li>某服务每秒到达 20 个请求，平均每个请求耗时 3 秒。系统平均并发是多少？如果 GPU 的最佳并发是 30，会发生什么？</li>
+<li>静态 batching 的三种浪费分别是什么？continuous batching 如何消除它们？又引入了哪些新问题？</li>
+<li>为什么说“模型权重放得下”不等于“服务跑得起来”？请列出一个 7B 模型在 24 GB 卡上部署时可能 OOM 的三个原因。</li>
+<li>假设你把 KV Cache 从 FP16 量化到 FP8，单 token KV 减半。这会如何影响：(a) 最大并发；(b) TTFT；(c) TPOT；(d) 输出质量？请分别讨论。</li>
+<li>用自己的话解释：为什么说 PagedAttention 是“操作系统虚拟内存”思想在 LLM 推理中的复现？</li>
+</ol>
+<blockquote>
+<p>参考答案与提示见<a href="../appendix-b-exercises/">附录 B</a>。</p>
+</blockquote>
+<hr />
+<blockquote>
+<p><strong>继续阅读</strong>：<a href="../02-engine-architecture/">第 2 章 推理引擎的通用架构 →</a></p>
+</blockquote>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../00-prerequisites/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 第 0 章 预备知识：从“文字接龙”到 GPU 服务">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                第 0 章 预备知识：从“文字接龙”到 GPU 服务
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../02-engine-architecture/" class="md-footer__link md-footer__link--next" aria-label="下一页: 第 2 章 推理引擎的通用架构">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                第 2 章 推理引擎的通用架构
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      © 2026 ShiZiMiao · 文档 CC BY 4.0 · 代码 MIT · 版本与性能结论请以官方文档和自测为准
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
