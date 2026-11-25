@@ -4,6 +4,7 @@
 > 从一次文本生成讲起，逐步建立 LLM 推理引擎的完整心智模型，再深入对比 SGLang 与 vLLM 的设计取舍。
 
 [![在线讲义](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E8%AE%B2%E4%B9%89-shizimiao.github.io-blue)](https://shizimiao.github.io/sglang-vs-vllm-lecture/)
+[![docs](https://github.com/ShiZiMiao/sglang-vs-vllm-lecture/actions/workflows/docs.yml/badge.svg)](https://github.com/ShiZiMiao/sglang-vs-vllm-lecture/actions/workflows/docs.yml)
 [![Docs License: CC BY 4.0](https://img.shields.io/badge/docs-CC%20BY%204.0-lightgrey)](https://creativecommons.org/licenses/by/4.0/)
 [![Code License: MIT](https://img.shields.io/badge/code-MIT-green)](LICENSE)
 
