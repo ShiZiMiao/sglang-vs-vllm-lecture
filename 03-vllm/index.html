@@ -612,7 +612,7 @@
   <a href="#30-pagedattention" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.0 先用储物柜类比理解 PagedAttention
+        3.0 先用活页草稿纸类比理解 PagedAttention
       
     </span>
   </a>
@@ -1604,7 +1604,7 @@
   <a href="#30-pagedattention" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.0 先用储物柜类比理解 PagedAttention
+        3.0 先用活页草稿纸类比理解 PagedAttention
       
     </span>
   </a>
@@ -2116,57 +2116,57 @@
 <h1 id="3-vllm-pagedattention">第 3 章 vLLM：以 PagedAttention 为核心的通用推理引擎<a class="headerlink" href="#3-vllm-pagedattention" title="Permanent link">&para;</a></h1>
 <blockquote>
 <p><strong>本章目标</strong>：理解 vLLM 的核心数据结构（块表）、前缀缓存（块哈希）、调度器（token budget + chunked prefill）以及 V1 引擎的进程架构。读完后，你应该能画出一次请求在 vLLM 内部的完整路径。</p>
-<p><strong>先修知识</strong>：<a href="../01-foundations/">第 1 章</a> 的 KV Cache 公式、<a href="../02-engine-architecture/">第 2 章</a> 的分页思想。如果忘了“块表”，本章 3.0 节会用储物柜类比重新讲。</p>
+<p><strong>先修知识</strong>：<a href="../01-foundations/">第 1 章</a> 的 KV Cache 公式、<a href="../02-engine-architecture/">第 2 章</a> 的分页思想。如果忘了“块表”，本章 3.0 节会用活页草稿纸类比重新讲。</p>
 <p><strong>一句话概括</strong>：vLLM 把 KV Cache 切成固定大小的块，用一张“块表”把逻辑位置翻译成物理位置，从而实现按需分配、共享和前缀复用。</p>
-<p><strong>给零基础同学</strong>：本章的关键不是背参数，而是理解“块表”和“块哈希”两个数据结构。看到 <code>block_table</code>、<code>slot_mapping</code> 时，回到 3.0 节的储物柜类比。</p>
+<p><strong>给零基础同学</strong>：本章的关键不是背参数，而是理解“块表”和“块哈希”两个数据结构。看到 <code>block_table</code>、<code>slot_mapping</code> 时，回到 3.0 节的活页草稿纸类比。</p>
 <p><strong>版本与来源</strong>：本章的默认值与源码路径按 <strong>vLLM 0.34.0</strong> 核对（2026-11-25）；参数逐项说明见 <a href="https://docs.vllm.ai/en/v0.34.0/configuration/engine_args.html">vLLM Engine Arguments</a>。</p>
 </blockquote>
 <hr />
-<h2 id="30-pagedattention">3.0 先用储物柜类比理解 PagedAttention<a class="headerlink" href="#30-pagedattention" title="Permanent link">&para;</a></h2>
-<p>假设你经营一个储物柜仓库：</p>
+<h2 id="30-pagedattention">3.0 先用活页草稿纸类比理解 PagedAttention<a class="headerlink" href="#30-pagedattention" title="Permanent link">&para;</a></h2>
+<p>PagedAttention 要解决的是 KV Cache 的显存管理：把 KV 切成固定大小的块，用块表把逻辑位置映射到物理位置，从而按需分配、共享和回收。假设考场给每份卷子发一叠<strong>活页草稿纸</strong>：</p>
 <ul>
-<li>每个储物柜有 16 个小格子（block_size = 16）；</li>
-<li>客人来了，不一定能拿到连号的柜子，可能拿到 7 号、3 号、9 号；</li>
-<li>你给每位客人一张<strong>取物卡</strong>，上面写着“第 0 段去 7 号柜、第 1 段去 3 号柜……”；</li>
-<li>这张卡就是 <strong>block table（块表）</strong>；</li>
-<li>柜子不需要连号，所以不会有“明明总空格够、却找不到连续 3 个柜子”的问题；</li>
-<li>两个客人如果前几段东西完全一样，可以暂时共用柜子；谁要往里写新东西，再复制一份，这就是 <strong>copy-on-write</strong>。</li>
+<li>每页有 16 个格子，正好记 16 个 token 的笔记（本节先以 block_size = 16 为例；vLLM 0.34.0 默认已是 64）；</li>
+<li>卷子拿到的页不一定连号，可能拿到 7 号页、3 号页、9 号页；</li>
+<li>你给每份卷子一张<strong>页码目录</strong>，上面写着“第 0 段笔记在 7 号页、第 1 段在 3 号页……”；</li>
+<li>这张目录就是 <strong>block table（块表）</strong>；</li>
+<li>页不需要连号，所以不会有“明明总空白够、却找不到连续 3 页”的问题；</li>
+<li>两份卷子如果前几段题干/笔记完全一样，可以暂时共用同一页；哪份卷子要往里写新东西，再复制一页，这就是 <strong>copy-on-write</strong>。</li>
 </ul>
 <p>PagedAttention 做的就是这件事：</p>
 <table>
 <thead>
 <tr>
-<th>储物柜</th>
+<th>活页草稿纸</th>
 <th>vLLM</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>柜子</td>
+<td>一页纸</td>
 <td>物理块（physical block）</td>
 </tr>
 <tr>
-<td>16 个小格子</td>
+<td>16 个格子</td>
 <td>block_size = 16 个 token 的 KV</td>
 </tr>
 <tr>
-<td>取物卡</td>
+<td>页码目录</td>
 <td>块表（block table）</td>
 </tr>
 <tr>
-<td>客人的逻辑第几段</td>
+<td>卷子的逻辑第几段</td>
 <td>逻辑块号（logical block）</td>
 </tr>
 <tr>
-<td>两客人共用柜子</td>
+<td>两份卷子共用一页</td>
 <td>块共享 + 引用计数</td>
 </tr>
 <tr>
-<td>写入时复制</td>
+<td>写入时复制一页</td>
 <td>copy-on-write</td>
 </tr>
 <tr>
-<td>柜子回收</td>
+<td>页码回收</td>
 <td>引用计数归零后回到空闲队列</td>
 </tr>
 </tbody>
@@ -2218,7 +2218,7 @@
 <p>几个关键点：</p>
 <ul>
 <li><strong>前后端分离</strong>：API Server 负责协议与文本处理，EngineCore 负责调度与 KV 管理，GPU Worker 负责模型执行。</li>
-<li><strong>ZMQ 通信</strong>：请求、调度输出、采样结果通过进程间消息传递。ZMQ 是一个消息队列库，可以把它想成“进程之间的快递员”；这带来隔离性与可扩展性，也带来 IPC（进程间通信）开销。</li>
+<li><strong>ZMQ 通信</strong>：请求、调度输出、采样结果通过进程间消息传递。ZMQ 是一个消息队列库，可以把它想成“进程之间的传送带”；这带来隔离性与可扩展性，也带来 IPC（进程间通信）开销。</li>
 <li><strong>DP Coordinator</strong>：当数据并行度 &gt;1 时，额外的协调进程负责在多个 DP rank 之间分配请求、协调 MoE 的同步前向。</li>
 <li><strong>异步调度</strong>：V1 的调度与执行可以流水化，减少 CPU 侧等待。</li>
 </ul>
@@ -2472,7 +2472,7 @@ h_{\text{block}} = \text{hash}\left(h_{\text{parent}},\; \text{tuple}(\text{bloc
 <li><strong>LRU 驱逐</strong>：空闲队列头部是最久未使用的块；被命中时从队列中摘下（引用计数 +1），不再可驱逐；释放后按相反顺序放回尾部（后面的块更不可能被复用）。</li>
 </ul>
 <blockquote>
-<p><strong>LRU 的冰箱类比</strong>：把空闲块想成冰箱里的食材。最久没被用到的放在最外面，空间不够时先扔它；刚被拿去做菜的，先放到里面，不会马上被扔。LRU = Least Recently Used，最近最少使用。</p>
+<p><strong>LRU 的纸堆类比</strong>：把空闲块想成草稿纸管理员手边的一叠活页纸。刚收回的纸放到最下面，最久没被使用的纸放在最上面；需要新纸时从最上面取，纸上的旧内容作废，但纸本身会被反复利用。LRU = Least Recently Used，最近最少使用。</p>
 </blockquote>
 <h3 id="344">3.4.4 一次前缀命中的过程<a class="headerlink" href="#344" title="Permanent link">&para;</a></h3>
 <p>请求的 prompt 有 2000 个 token，前 1984 个 token（124 个完整块）与缓存中的某个前缀相同：</p>
@@ -2868,7 +2868,7 @@ h_{\text{block}} = \text{hash}\left(h_{\text{parent}},\; \text{tuple}(\text{bloc
 <p><strong>误区 4：Copy-on-Write 每次写入都会复制。</strong><br />
 只有在“共享块需要被某条序列继续写入”时才复制；只读共享不复制。复制的是整块（示例中 16 token），不是整个序列。</p>
 <p><strong>误区 5：block_size 越小越好。</strong><br />
-块小 → 内部碎片小、前缀粒度细，但块表更长、kernel 寻址更频繁、元数据更多。16 是工程折中，不是越小越优。</p>
+块小 → 内部碎片小、前缀粒度细，但块表更长、kernel 寻址更频繁、元数据更多。块大小是工程折中（0.34.0 默认 64，历史版本长期用 16），不是越小越优。</p>
 <p><strong>误区 6：vLLM 的调度就是先来先服务。</strong><br />
 FCFS 是默认顺序，但调度器还要做 token budget、chunked prefill、抢占、前缀缓存命中、优先级等决策。</p>
 <p><strong>误区 7：V1 只是 V0 改了个名字。</strong><br />
@@ -2885,7 +2885,7 @@ V1 重构了进程架构、调度循环、KV 管理和执行路径，是一个�
 <li>优势是通用与成熟；局限是块级前缀复用与默认不感知前缀的调度。</li>
 </ul>
 <blockquote>
-<p><strong>用大白话再说一遍</strong>：vLLM 把 KV 当成仓库里的储物柜，柜子不要求连号；每位客人有一张块表，写着“第几段去几号柜”。相同前缀的客人可以暂时共用柜子，谁要写新东西再复制。前缀缓存就是“给每段柜子算指纹”，下次遇到相同前缀直接复用。V1 则是把前台、调度室、厨房拆成不同房间，让它们能并行工作。</p>
+<p><strong>用大白话再说一遍</strong>：vLLM 把 KV 当成考场里的活页草稿纸，页不要求连号；每份卷子有一张页码目录，写着“第几段笔记去几号页”。相同前缀的卷子可以暂时共用页，哪份卷子要写新东西再复制一页。前缀缓存就是“给每页笔记算指纹”，下次遇到相同前缀直接复用。V1 则是把接卷窗口、监考、考生大脑拆成不同房间，让它们能并行工作。</p>
 <p><strong>延伸阅读</strong>：PagedAttention 论文（SOSP 2023）、vLLM 文档中的 <a href="https://docs.vllm.ai/en/v0.34.0/design/paged_attention.html">PagedAttention</a> / <a href="https://docs.vllm.ai/en/v0.34.0/design/prefix_caching.html">Prefix Caching</a> 章节，以及 <code>scheduler.py</code>、<code>kv_cache_manager.py</code> 的源码。</p>
 </blockquote>
 <hr />

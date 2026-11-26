@@ -727,7 +727,7 @@
   <a href="#50" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5.0 先用衣柜类比理解两种方案
+        5.0 先用两种“草稿纸整理法”理解两种方案
       
     </span>
   </a>
@@ -1526,7 +1526,7 @@
   <a href="#50" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5.0 先用衣柜类比理解两种方案
+        5.0 先用两种“草稿纸整理法”理解两种方案
       
     </span>
   </a>
@@ -1961,34 +1961,34 @@
 <blockquote>
 <p><strong>本章目标</strong>：把第 3、4 章的知识放在同一张桌子上，逐项比较 KV 管理、调度、执行与分布式策略，并回答一个关键问题：<strong>这些设计差异在什么 workload 下才真正转化为性能差异？</strong></p>
 <p><strong>先修知识</strong>：<a href="../03-vllm/">第 3 章</a> 的块表/块哈希、<a href="../04-sglang/">第 4 章</a> 的基数树/缓存感知调度。如果只记得“vLLM 分块、SGLang 种树”，也能读，但建议先补完这两章。</p>
-<p><strong>一句话概括</strong>：vLLM 像“固定大小的收纳盒 + 盒号清单”，SGLang 像“按前缀共享的文件夹树”；一个胜在通用和简单，一个胜在前缀复用和可选的缓存感知调度。</p>
+<p><strong>一句话概括</strong>：vLLM 像“固定大小的活页纸 + 页码目录”，SGLang 像“按前缀共享的笔记目录树”；一个胜在通用和简单，一个胜在前缀复用和可选的缓存感知调度。</p>
 <p><strong>给零基础同学</strong>：本章不是要你判定“谁更强”，而是教你判断“在什么条件下谁更合适”。先看 5.0 的类比，再看表格，最后用 5.5 的公式估算自己的场景。</p>
 </blockquote>
 <hr />
-<h2 id="50">5.0 先用衣柜类比理解两种方案<a class="headerlink" href="#50" title="Permanent link">&para;</a></h2>
-<p>假设你要整理一整个衣柜：</p>
-<p><strong>vLLM 的做法：固定收纳盒</strong></p>
+<h2 id="50">5.0 先用两种“草稿纸整理法”理解两种方案<a class="headerlink" href="#50" title="Permanent link">&para;</a></h2>
+<p>vLLM 用固定大小的块 + 块表管理 KV；SGLang 用基数树做 token 级前缀索引。假设考场要给每份卷子准备草稿纸：</p>
+<p><strong>vLLM 的做法：固定页 + 页码目录</strong></p>
 <ul>
-<li>把衣服按每 16 件装进一个标准收纳盒；</li>
-<li>每个盒子上贴编号，柜子里的盒子可以不连号；</li>
-<li>一张清单记录“第 1 盒放 7 号格、第 2 盒放 3 号格……”；</li>
-<li>两个搭配如果前几盒完全一样，可以暂时共用盒子；</li>
-<li>要改其中一件，就把那一盒复制一份再改；</li>
-<li>盒子可能有空位（最后没装满），但不会出现“总空间够、却找不到连续大空间”的问题。</li>
+<li>把笔记按固定格数装进标准活页纸（本章示例 16 格；vLLM 0.34.0 默认 64）；</li>
+<li>每页贴编号，纸堆里的页可以不连号；</li>
+<li>一张页码目录记录“第 1 段在 7 号页、第 2 段在 3 号页……”；</li>
+<li>两份卷子如果前几页完全一样，可以暂时共用同一页；</li>
+<li>要改其中一段，就把那一页复制一份再改；</li>
+<li>每页可能有空格（最后没写满），但不会出现“总空白够、却找不到连续三页”的问题。</li>
 </ul>
-<p><strong>SGLang 的做法：按搭配挂衣杆</strong></p>
+<p><strong>SGLang 的做法：按前缀共享的笔记目录</strong></p>
 <ul>
-<li>把“套装搭配”从前往后挂在同一根杆上；</li>
-<li>相同的搭配共享前面那段杆，分叉后各挂各的；</li>
-<li>每条搭配记一个“从杆的哪个位置开始”的索引；</li>
-<li>不要求固定长度，任意长度的共享前缀都能复用；</li>
+<li>把每份卷子的笔记从开头往后接进同一本目录；</li>
+<li>相同的开头共享前面那段笔记，分叉后各记各的；</li>
+<li>每段笔记记下它在草稿纸池里占哪些格子的索引；</li>
+<li>段长可变，任意长度的共享前缀都能复用；</li>
 <li>分支很多、前缀很长时，共享得非常细；</li>
-<li>但要维护一棵树，找位置、分叉、回收都需要额外操作。</li>
+<li>但要维护一棵目录树，找位置、分叉、回收都需要额外操作。</li>
 </ul>
 <table>
 <thead>
 <tr>
-<th>衣柜方案</th>
+<th>草稿纸方案</th>
 <th>引擎</th>
 <th>强项</th>
 <th>代价</th>
@@ -1996,26 +1996,26 @@
 </thead>
 <tbody>
 <tr>
-<td>固定收纳盒 + 盒号清单</td>
+<td>固定页 + 页码目录</td>
 <td>vLLM</td>
 <td>通用、简单、kernel 友好</td>
-<td>共享粒度受 16 token 盒子限制</td>
+<td>共享粒度受固定页大小限制（本章示例 16 token）</td>
 </tr>
 <tr>
-<td>按搭配挂衣杆 + 树</td>
+<td>共享笔记目录 + 树</td>
 <td>SGLang</td>
 <td>token 级前缀复用、缓存感知调度（可选）</td>
 <td>树维护开销、公平性风险</td>
 </tr>
 </tbody>
 </table>
-<p>这个类比只强调“索引与共享方式”；SGLang 底层仍然需要盒子/槽位来放 KV，只是它可以把共享粒度做到单个 token（<code>page_size=1</code> 时），而不是一整个盒子。理解了这张表，后面的对比表就只是“细节展开”。</p>
+<p>这个类比只强调“索引与共享方式”；SGLang 底层仍然需要活页纸/槽位来放 KV，只是它可以把共享粒度做到单个 token（<code>page_size=1</code> 时），而不是一整页。理解了这张表，后面的对比表就只是“细节展开”。</p>
 <hr />
 <h2 id="51">5.1 两条技术路线的一张图<a class="headerlink" href="#51" title="Permanent link">&para;</a></h2>
 <p>两条路线的端到端差异可以压缩成图 5-1：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>vLLM:
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  请求 → FCFS/token budget 调度
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>       → 固定大小块（如 16 token）
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>       → 固定大小块（本章示例 16 token；默认 64）
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>       → block table: 逻辑块 → 物理块
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>       → 块级哈希前缀缓存 + LRU
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>       → PagedAttention kernel
@@ -2889,7 +2889,7 @@
 <li>选型不要背结论，要用自己的 workload 做对照实验（第 7、8 章）。</li>
 </ul>
 <blockquote>
-<p><strong>用大白话再说一遍</strong>：vLLM 像固定大小的收纳盒，整齐、通用、好管理；SGLang 像按搭配挂衣杆，相同前缀共享得细、找衣服快，但树枝要维护。衣服（请求）搭配越相似、共享越多，挂衣杆越有优势；如果每件衣服都完全不一样，收纳盒反而更省心。</p>
+<p><strong>用大白话再说一遍</strong>：vLLM 像固定大小的活页纸，整齐、通用、好管理；SGLang 像共享笔记目录树，相同前缀共享得细、找笔记快，但树要维护。卷子（请求）前缀越相似、共享越多，目录树越有优势；如果每份卷子都完全不一样，活页纸反而更省心。</p>
 </blockquote>
 <hr />
 <h2 id="_1">思考题<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>

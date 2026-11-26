@@ -525,7 +525,7 @@
   <a href="#20" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2.0 先用餐厅类比理解整个引擎
+        2.0 先用考场/教务系统类比理解整个引擎
       
     </span>
   </a>
@@ -1621,7 +1621,7 @@
   <a href="#20" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2.0 先用餐厅类比理解整个引擎
+        2.0 先用考场/教务系统类比理解整个引擎
       
     </span>
   </a>
@@ -2150,74 +2150,74 @@
 <h1 id="2">第 2 章 推理引擎的通用架构<a class="headerlink" href="#2" title="Permanent link">&para;</a></h1>
 <blockquote>
 <p><strong>本章目标</strong>：在进入 vLLM 与 SGLang 的细节之前，先建立一套“引擎无关”的通用架构。之后你会发现，两个引擎的差异主要是同一组模块里的数据结构与策略不同。</p>
-<p><strong>先修知识</strong>：<a href="../00-prerequisites/">第 0 章</a> 的 token/GPU 直觉、<a href="../01-foundations/">第 1 章</a> 的 prefill/decode 与 KV Cache。忘了也没关系，本章会用“餐厅”类比重新串一遍。</p>
-<p><strong>一句话概括</strong>：推理引擎 = 一个专门服务 LLM 请求的“餐厅”：前台接单、调度员排桌、座位管理员管 KV、厨房做前向、传菜员流式返回。</p>
-<p><strong>给零基础同学</strong>：本章会出现很多组件名，不要试图一次记住。先记住“一条请求从进门到出门经过哪些人”，再看每个人具体做什么。</p>
+<p><strong>先修知识</strong>：<a href="../00-prerequisites/">第 0 章</a> 的 token/GPU 直觉、<a href="../01-foundations/">第 1 章</a> 的 prefill/decode 与 KV Cache。忘了也没关系，本章会用“考场/教务系统”类比重新串一遍。</p>
+<p><strong>一句话概括</strong>：推理引擎 = 一个专门服务 LLM 请求的“考场”：接卷窗口收下卷子、监考排卷、草稿纸管理员管 KV、考生大脑做前向、誊写员流式交卷。</p>
+<p><strong>给零基础同学</strong>：本章会出现很多组件名，不要试图一次记住。先记住“一份卷子从进考场到交卷经过哪些人”，再看每个人具体做什么。</p>
 </blockquote>
 <hr />
-<h2 id="20">2.0 先用餐厅类比理解整个引擎<a class="headerlink" href="#20" title="Permanent link">&para;</a></h2>
-<p>把推理引擎想成一家餐厅（图 2-1）：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>客人（用户请求）
+<h2 id="20">2.0 先用考场/教务系统类比理解整个引擎<a class="headerlink" href="#20" title="Permanent link">&para;</a></h2>
+<p>推理引擎通常由七类组件组成：API/Frontend、Processor/Tokenizer、Scheduler、KV Cache Manager、Executor/Worker、Sampler、Output Processor。把推理引擎想成一个考场/教务系统（图 2-1）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>卷子（用户请求）
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>   │
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>   ▼
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>服务员（API/Frontend）── 接单、验券、把菜单翻译成厨房编号
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>接卷窗口（API/Frontend）── 收下卷子、验身份、交给监考
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>   │
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>   ▼
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>调度员（Scheduler）──── 决定先做哪桌、每桌做多少、什么时候加桌
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>监考/排卷（Scheduler）──── 决定先答哪份、每份答多少、什么时候加卷
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>   │
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>   ├──▶ 座位管理员（KV Cache Manager）── 记录谁坐哪、哪些座位可拼桌
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>   ├──▶ 草稿纸管理员（KV Cache Manager）── 记录每份卷子的笔记放哪、哪些笔记可共享
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>   │
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>   ▼
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>厨房（Executor/Worker/ModelRunner）── 真正炒菜（GPU 前向）
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>考生大脑（Executor/Worker/ModelRunner）── 真正作答（GPU 前向）
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>   │
 <a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>   ▼
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>传菜员（Output Processor/Detokenizer）── 把菜端出去、报菜名（流式输出）
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>誊写/收卷员（Output Processor/Detokenizer）── 把答案整理好、流式交卷
 </code></pre></div>
-<p><em>图 2-1　推理引擎的餐厅类比</em></p>
-<p><em>表 2-1　餐厅类比与引擎组件</em></p>
+<p><em>图 2-1　推理引擎的考场类比</em></p>
+<p><em>表 2-1　考场类比与引擎组件</em></p>
 <table>
 <thead>
 <tr>
-<th>餐厅角色</th>
+<th>考场角色/环节</th>
 <th>引擎组件</th>
 <th>一句话职责</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>服务员</td>
+<td>接卷窗口</td>
 <td>API / Frontend</td>
-<td>接请求、鉴权、解析参数、流式返回</td>
+<td>收下卷子、验身份、解析参数、管理连接</td>
 </tr>
 <tr>
-<td>菜单翻译</td>
+<td>题目录入</td>
 <td>Processor / Tokenizer</td>
-<td>文本 → token，套 chat template</td>
+<td>文本 → token，套答题模板</td>
 </tr>
 <tr>
-<td>调度员</td>
+<td>监考 / 排卷</td>
 <td>Scheduler</td>
-<td>每一步决定谁上、谁下、做多少</td>
+<td>每一步决定哪份答、哪份停、答多少</td>
 </tr>
 <tr>
-<td>座位管理员</td>
+<td>草稿纸管理员</td>
 <td>KV Cache Manager</td>
-<td>分配/共享/回收 KV 座位</td>
+<td>分配/共享/回收草稿纸</td>
 </tr>
 <tr>
-<td>厨房</td>
+<td>考生大脑</td>
 <td>Executor / Worker / ModelRunner</td>
 <td>在 GPU 上执行模型前向</td>
 </tr>
 <tr>
-<td>调味师</td>
+<td>落笔</td>
 <td>Sampler / Logits Processor</td>
 <td>从概率里选下一个 token</td>
 </tr>
 <tr>
-<td>传菜员</td>
+<td>誊写 / 收卷员</td>
 <td>Output Processor / Detokenizer</td>
-<td>判断停止、还原文本、流式输出</td>
+<td>判断停止、还原文本、流式交卷</td>
 </tr>
 </tbody>
 </table>
@@ -2954,7 +2954,7 @@ PD 分离适合两阶段资源需求差异大、需要独立扩缩容的场景�
 <li>vLLM 与 SGLang 共享 continuous batching 与 paged/varlen attention 的血脉，主要差异在 <strong>KV 数据结构、调度策略与前端可编程性</strong>。</li>
 </ul>
 <blockquote>
-<p><strong>用大白话再说一遍</strong>：引擎像一家餐厅。服务员接单，调度员决定先做哪桌、每桌做多少，座位管理员记录谁坐哪、能不能拼桌，厨房做菜，传菜员把菜端出去。PagedAttention/RadixAttention 是两种“座位管理法”，continuous batching 是“谁吃完谁走、空位立刻补人”的排桌方式。</p>
+<p><strong>用大白话再说一遍</strong>：引擎像一套考场/教务系统。接卷窗口收下卷子，监考决定先答哪份、每份答多少，草稿纸管理员记录每份卷子的笔记放哪、哪些笔记能共享，考生大脑作答，誊写员把答案交出去。PagedAttention 管“草稿纸怎么分”，RadixAttention 在分好的草稿纸池上建“前缀索引”，continuous batching 是“哪份答完哪份交卷、空出的桌面立刻补下一份”的排卷方式。</p>
 </blockquote>
 <hr />
 <h2 id="_1">思考题<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>

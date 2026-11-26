@@ -433,7 +433,7 @@
   <a href="#012-vs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        0.1.2 训练与推理：写菜谱 vs 按菜谱做菜
+        0.1.2 训练与推理：同一个学生，备考 vs 考场
       
     </span>
   </a>
@@ -541,10 +541,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#033-token" class="md-nav__link">
+  <a href="#033" class="md-nav__link">
     <span class="md-ellipsis">
       
-        0.3.3 注意力：让 token 互相“开会”
+        0.3.3 注意力：答题时回看前文
       
     </span>
   </a>
@@ -1528,7 +1528,7 @@
   <a href="#012-vs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        0.1.2 训练与推理：写菜谱 vs 按菜谱做菜
+        0.1.2 训练与推理：同一个学生，备考 vs 考场
       
     </span>
   </a>
@@ -1636,10 +1636,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#033-token" class="md-nav__link">
+  <a href="#033" class="md-nav__link">
     <span class="md-ellipsis">
       
-        0.3.3 注意力：让 token 互相“开会”
+        0.3.3 注意力：答题时回看前文
       
     </span>
   </a>
@@ -1971,32 +1971,59 @@
 <blockquote>
 <p><strong>零基础提示</strong>：不要把模型想成“数据库查询”。它不是在记忆里找一句现成的话，而是在每一步计算“下一个 token 应该是什么”的概率。数十亿个参数共同决定了这个概率。</p>
 </blockquote>
-<h3 id="012-vs">0.1.2 训练与推理：写菜谱 vs 按菜谱做菜<a class="headerlink" href="#012-vs" title="Permanent link">&para;</a></h3>
+<h3 id="012-vs">0.1.2 训练与推理：同一个学生，备考 vs 考场<a class="headerlink" href="#012-vs" title="Permanent link">&para;</a></h3>
+<p>训练和推理用的是<strong>同一个模型</strong>，但目标不同。训练用大量数据反复做前向计算（forward pass：把输入喂进去，一层层算到输出），拿预测和标准答案比对得到损失，再通过反向传播和梯度下降更新参数；推理则把参数冻结，只做前向计算，用固定的模型回答请求。这两个阶段的关系，可以用<strong>同一个学生：备考 vs 考场作答</strong>来理解（进考场后就是“考生”；表 0-1）。</p>
 <table>
 <thead>
 <tr>
-<th>阶段</th>
-<th>做什么</th>
+<th>真实概念</th>
 <th>类比</th>
-<th>本讲义关注吗</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>训练（training）</td>
-<td>用大量文本调整模型参数</td>
-<td>厨师反复试菜，写出一本菜谱</td>
-<td>不关注</td>
+<td>同一个模型</td>
+<td>同一个学生</td>
 </tr>
 <tr>
-<td>推理（inference）</td>
-<td>参数固定，回答用户请求</td>
-<td>服务员按菜谱做菜、上菜</td>
-<td><strong>全程关注</strong></td>
+<td>训练：在数据上反复做前向计算，拿预测和标准答案比对</td>
+<td>大量刷题、对答案、改错</td>
+</tr>
+<tr>
+<td>损失函数（loss）：衡量预测离标准答案有多远</td>
+<td>对答案打出的分数</td>
+</tr>
+<tr>
+<td>反向传播算出每个参数该怎么改，再由梯度下降更新参数</td>
+<td>按错题修正脑内的知识</td>
+</tr>
+<tr>
+<td>推理：参数冻结，只做前向计算，不再更新</td>
+<td>走进考场，知识固定，只管作答</td>
+</tr>
+<tr>
+<td>训练一次可能花费数百万美元、数周时间</td>
+<td>备考几个月、代价高昂</td>
+</tr>
+<tr>
+<td>推理关心的延迟、质量、吞吐和成本</td>
+<td>答得快、答得对、同时应付多少份卷子</td>
 </tr>
 </tbody>
 </table>
-<p>训练一次可能花费几百万美元、几周时间；推理则要每天每秒服务大量用户。训练关心“模型准不准”，推理关心“<strong>快不快、贵不贵、稳不稳</strong>”。这两件事的优化方法完全不同，所以我们需要专门的“推理引擎”。</p>
+<p><em>表 0-1　训练与推理：概念与类比对照</em></p>
+<p>这个类比最关键的一点是：<strong>学习和作答用的是同一个大脑；训练改变的是大脑里的“知识”（对应参数）；走进考场后，这些知识就固定下来。</strong> 对应到模型：训练和推理共用同一套网络结构（层数、注意力头数等都不变）和同一套前向计算；训练更新参数，推理冻结参数。区别只有两处：</p>
+<ol>
+<li>训练在算出预测之后，还要算损失、做反向传播、更新参数；</li>
+<li>推理把这几步全部关掉，参数冻结，只保留前向计算。</li>
+</ol>
+<blockquote>
+<p><strong>零基础提示</strong>：推理用的是和训练完全相同的模型：同一个 7B 模型，权重完全一样；推理时参数只是被冻住不再改动，模型不再学习。</p>
+</blockquote>
+<p><strong>本讲义的重点始终是推理。</strong> 训练代价高昂，关心的是“模型准不准”；推理则要每天每秒服务大量用户，关心的是“<strong>快不快、贵不贵、稳不稳</strong>”。两者的优化目标不同，所以同一个模型需要专门的“推理引擎”：同一个模型在高频、海量、参数固定的场景下，优化目标和训练完全不同。</p>
+<p>这个类比也有边界：学生备考是<strong>有意识</strong>地理解错题；模型训练只是按梯度机械地调整数字。类比用来理解“参数什么时候变、什么时候不变”很有效。</p>
+<p>如果更喜欢工程味的说法，可以把训练想成<strong>灌制唱片母带</strong>（反复录音、混音、剪辑，一旦定版就很难再改），把推理想成<strong>批量压盘播放</strong>（母带固定，播放千万次也不会改变母带本身）——它对“参数固定、反复复用”的刻画非常准，只是不如学生备考直观。</p>
+<p>这个类比还能一路延用到后面的章节：continuous batching 像同一考生同时摊开多份卷子，每轮各写一个字，哪份先答完哪份先交卷、空出的桌面立刻补下一份；KV Cache 像考生把读过的前文记在草稿纸上，不必每答一步都从头再读；RadixAttention 则像多份卷子共用开头相同的笔记，只整理一次。读到第 1、3、4 章时可以回头对照。</p>
 <h3 id="013-token">0.1.3 为什么“一次只生成一个 token”会慢<a class="headerlink" href="#013-token" title="Permanent link">&para;</a></h3>
 <p>假设模型生成 500 个 token，就要把模型跑 500 次。每次都要：</p>
 <ol>
@@ -2088,7 +2115,7 @@
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>"汽车" → [-0.5, 0.9, -0.3, ...]
 </code></pre></div>
 <p>向量之间的“距离”可以表示语义相似度。模型通过多层变换，让这些向量逐渐带上上下文信息。</p>
-<h3 id="033-token">0.3.3 注意力：让 token 互相“开会”<a class="headerlink" href="#033-token" title="Permanent link">&para;</a></h3>
+<h3 id="033">0.3.3 注意力：答题时回看前文<a class="headerlink" href="#033" title="Permanent link">&para;</a></h3>
 <p>注意力机制要解决的问题是：</p>
 <blockquote>
 <p>当前这个 token，应该从前面哪些 token 那里获取信息？获取多少？</p>
@@ -2099,28 +2126,28 @@
 <tr>
 <th>名称</th>
 <th>含义</th>
-<th>开会类比</th>
+<th>回看前文类比</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><strong>Query（Q）</strong></td>
 <td>我想找什么信息</td>
-<td>我提出的问题</td>
+<td>这一步带着的问题</td>
 </tr>
 <tr>
 <td><strong>Key（K）</strong></td>
 <td>我能提供什么标签</td>
-<td>每个人名片上的关键词</td>
+<td>前文每个词/句的标签</td>
 </tr>
 <tr>
 <td><strong>Value（V）</strong></td>
 <td>我实际能提供的内容</td>
-<td>每个人带来的资料</td>
+<td>前文的具体内容</td>
 </tr>
 </tbody>
 </table>
-<p>计算过程可以粗略理解为：</p>
+<p>计算过程可以粗略理解为：考生带着当前这一步的问题（Q），去和前文每个词句的标签（K）比对，按匹配度取用它们的内容（V）。具体是：</p>
 <ol>
 <li>当前 token 的 Q 和每个历史 token 的 K 做点积，得到“匹配分数”；</li>
 <li>分数经过 softmax，变成“注意力权重”；</li>
@@ -2177,7 +2204,7 @@
 <p>这也是为什么生成必须从左到右、一个接一个。</p>
 <h3 id="035-mlp">0.3.5 多头注意力与 MLP<a class="headerlink" href="#035-mlp" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>多头注意力（multi-head attention）</strong>：同时用多组 Q/K/V，从不同角度关注信息，像开多个小组会；</li>
+<li><strong>多头注意力（multi-head attention）</strong>：同时用多组 Q/K/V，从不同角度回看前文，像同时从几个不同角度翻同一份笔记；</li>
 <li><strong>MLP（前馈网络）</strong>：对每个 token 的向量单独做变换，增加非线性；</li>
 <li><strong>残差连接 + LayerNorm</strong>：让深层网络更容易训练，暂时理解成“给信息留一条捷径”；</li>
 <li><strong>层数</strong>：7B 模型通常有 28～32 层，70B 模型有 80 层左右。</li>
@@ -2191,7 +2218,7 @@
 </ul>
 <p>这就是 <strong>KV Cache</strong>。如果不缓存，生成第 <span class="arithmatex">\(t\)</span> 个 token 时要把前面 <span class="arithmatex">\(t-1\)</span> 个 token 的 K/V 全部重算一遍，生成 <span class="arithmatex">\(T\)</span> 个 token 的 K/V 投影总工作量是 <span class="arithmatex">\(O(T^2)\)</span>；缓存之后，历史 K/V 只算一次，每步只算新 token 的 K/V，K/V 投影总工作量降到 <span class="arithmatex">\(O(T)\)</span>。代价是这些 K/V 要占显存。（注意力本身仍要对历史 KV 做加权，和 <span class="arithmatex">\(T^2\)</span> 相关；这里说的是省掉重复的 K/V 投影。）</p>
 <blockquote>
-<p>类比：你读一本小说，不需要每读一页就从头再读一遍。KV Cache 就是你记在脑子里的“前文笔记”。但笔记要占脑容量，上下文越长，占得越多。</p>
+<p>类比：做一份很长的卷子时，你不需要每写一题就从头重读一遍题干。KV Cache 就是你给前文每个 token 记在草稿纸上的“逐字笔记”，每个 token 的 K/V 原样保存。但草稿纸要占桌面，卷子越长，占得越多。</p>
 </blockquote>
 <hr />
 <h2 id="04-gpu">0.4 GPU、显存与“两个瓶颈”<a class="headerlink" href="#04-gpu" title="Permanent link">&para;</a></h2>
@@ -2266,6 +2293,7 @@
 </tr>
 </tbody>
 </table>
+<p>换成考场说法：prefill 像通读整张卷子，脑子算不过来；decode 像一边写一边反复翻草稿纸，翻找速度跟不上。但真要算 GPU 的账，上面的“工厂”模型更准——考场类比只负责直觉。</p>
 <p>这就是为什么：</p>
 <ul>
 <li>prefill 阶段 GPU 利用率高；</li>
@@ -2308,42 +2336,42 @@
 <hr />
 <h2 id="05">0.5 推理服务的四个基本量<a class="headerlink" href="#05" title="Permanent link">&para;</a></h2>
 <h3 id="051">0.5.1 延迟、吞吐、并发、成本<a class="headerlink" href="#051" title="Permanent link">&para;</a></h3>
-<p>用餐厅类比：</p>
+<p>用考场类比：</p>
 <table>
 <thead>
 <tr>
 <th>指标</th>
-<th>餐厅类比</th>
+<th>考场类比</th>
 <th>技术含义</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><strong>延迟（latency）</strong></td>
-<td>从点菜到吃上第一口的时间</td>
-<td>一个请求要等多久</td>
+<td>一份卷子从发下到交卷的时间（第一个字等多久单算）</td>
+<td>一个请求从发出到完成要等多久</td>
 </tr>
 <tr>
 <td><strong>吞吐（throughput）</strong></td>
-<td>每小时能服务多少桌</td>
+<td>每小时能处理多少份卷子</td>
 <td>单位时间处理多少 token/请求</td>
 </tr>
 <tr>
 <td><strong>并发（concurrency）</strong></td>
-<td>同时有几桌在吃</td>
+<td>同时有多少份卷子在答</td>
 <td>系统里同时有多少请求</td>
 </tr>
 <tr>
 <td><strong>成本（cost）</strong></td>
-<td>每桌菜的原料和人工</td>
+<td>每份卷子的纸张、场地和人工</td>
 <td>每百万 token 的 GPU 费用</td>
 </tr>
 </tbody>
 </table>
 <p>这四个量互相牵制：</p>
 <ul>
-<li>同时开很多桌（高并发）→ 吞吐高，但每桌等得久（延迟高）；</li>
-<li>只服务一桌（低并发）→ 延迟低，但吞吐低、成本高；</li>
+<li>同时摊开很多份卷子（高并发）→ 吞吐高，但每份等得久（延迟高）；</li>
+<li>只答一份（低并发）→ 延迟低，但吞吐低、成本高；</li>
 <li>所以推理引擎的核心工作之一，是<strong>在吞吐和延迟之间找平衡</strong>。</li>
 </ul>
 <h3 id="052-little">0.5.2 Little 定律：并发、吞吐、延迟的关系<a class="headerlink" href="#052-little" title="Permanent link">&para;</a></h3>
@@ -2437,7 +2465,7 @@
 </tbody>
 </table>
 <blockquote>
-<p><strong>类比</strong>：点菜（HTTP）→ 备菜（prefill）→ 一道一道上菜（decode）→ 服务员报菜名（detokenize）。第一道菜等得久，后面上菜快，因为厨房已经进入状态。</p>
+<p><strong>类比</strong>：接卷（HTTP）→ 通读题干并做笔记（prefill）→ 逐字作答（decode）→ 誊写员整理答案、交卷（detokenize）。第一个字等得久，后面越写越快，因为考生已经进入状态。</p>
 </blockquote>
 <hr />
 <h2 id="07">0.7 本讲义的地图<a class="headerlink" href="#07" title="Permanent link">&para;</a></h2>
@@ -2546,7 +2574,7 @@
 <ol>
 <li>用一句话解释“自回归生成”。</li>
 <li>token 和汉字/单词有什么区别？为什么计费按 token？</li>
-<li>注意力里的 Q、K、V 分别代表什么？用开会类比说明。</li>
+<li>注意力里的 Q、K、V 分别代表什么？用“答题时回看前文”的类比说明。</li>
 <li>为什么生成第 3 个 token 时不能看第 4 个 token？</li>
 <li>KV Cache 省下了什么计算？代价是什么？</li>
 <li>为什么 decode 阶段容易受显存带宽限制，而 prefill 更容易受算力限制？</li>
@@ -2557,7 +2585,7 @@
 <ol>
 <li>模型根据已生成的 token，预测下一个 token，并把结果接回输入，循环生成。</li>
 <li>token 是 tokenizer 词表中的最小单位，可能是一个字、半个词或几个字；计费、上下文和 KV 都按 token 计算，所以按 token 而不是按字数。</li>
-<li>Q 是“我想找什么”，K 是“我有什么标签”，V 是“我有什么内容”；用 Q 和 K 的匹配度给 V 加权。</li>
+<li>Q 是“我想找什么”，K 是“我有什么标签”，V 是“我有什么内容”；用 Q 和 K 的匹配度给 V 加权。就像考生带着问题，按前文词句的标签找内容。</li>
 <li>因为生成是因果的，第 4 个 token 还不存在；训练/推理时用 causal mask 屏蔽未来位置。</li>
 <li>省下了对历史 token 的 K/V 重复计算；代价是显存占用，上下文越长占用越大。</li>
 <li>Decode 每步只处理 1 个 token，计算量小，但要把权重和 KV 从显存读出来，所以受带宽限制；prefill 一次处理很多 token，矩阵乘法大，受算力限制。</li>
@@ -2568,6 +2596,7 @@
 <h2 id="010">0.10 本章小结<a class="headerlink" href="#010" title="Permanent link">&para;</a></h2>
 <ul>
 <li>LLM 做的是“给定前文，预测下一个 token”，并循环生成。</li>
+<li>训练和推理是同一个模型、同一套前向计算；区别是训练会更新参数，推理则冻结参数。本讲义的重点是推理。</li>
 <li>文本先被 tokenizer 切成 token；上下文长度、计费、KV 都按 token 算。</li>
 <li>Transformer 由多层“注意力 + MLP”组成；注意力用 Q/K/V 让 token 交换信息。</li>
 <li>历史 token 的 K/V 可以缓存，这就是 KV Cache；它省计算但占显存。</li>

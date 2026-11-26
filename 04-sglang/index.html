@@ -640,7 +640,7 @@
   <a href="#40-radixattention" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.0 先用文件夹类比理解 RadixAttention
+        4.0 先用“笔记目录树”类比理解 RadixAttention
       
     </span>
   </a>
@@ -1643,7 +1643,7 @@
   <a href="#40-radixattention" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.0 先用文件夹类比理解 RadixAttention
+        4.0 先用“笔记目录树”类比理解 RadixAttention
       
     </span>
   </a>
@@ -2196,64 +2196,64 @@
 <p><strong>本章目标</strong>：理解 SGLang 的两层含义（前端语言 + 运行时）、RadixAttention 的树结构与操作、缓存感知调度，以及它在结构化输出、大规模 MoE、PD 分离上的工程取舍。</p>
 <p><strong>先修知识</strong>：<a href="../01-foundations/">第 1 章</a> 的 KV Cache、<a href="../02-engine-architecture/">第 2 章</a> 的分页思想、<a href="../03-vllm/">第 3 章</a> vLLM 的块级前缀缓存。建议先读第 3 章，才能体会“块级 vs token 级”的差别。</p>
 <p><strong>一句话概括</strong>：SGLang 把 KV Cache 的<strong>前缀索引</strong>组织成一棵“前缀树”（KV 数据本身仍在显存池中），相同前缀的请求共用树上的节点；如果开启缓存感知调度，还可以优先安排前缀命中更长的请求（默认策略是 FCFS）。</p>
-<p><strong>给零基础同学</strong>：不要被“基数树”“引用计数”吓到。本章 4.0 节会用“文件夹路径”类比，把树的匹配、分裂、共享讲清楚。</p>
+<p><strong>给零基础同学</strong>：不要被“基数树”“引用计数”吓到。本章 4.0 节会用“笔记目录树”类比，把树的匹配、分裂、共享讲清楚。</p>
 <p><strong>版本与来源</strong>：本章的默认值与源码路径按 <strong>SGLang 0.5.23</strong> 核对（2026-11-25）；参数逐项说明见 <a href="https://docs.sglang.io/docs/advanced_features/server_arguments">SGLang Server Arguments</a>。</p>
 </blockquote>
 <hr />
-<h2 id="40-radixattention">4.0 先用文件夹类比理解 RadixAttention<a class="headerlink" href="#40-radixattention" title="Permanent link">&para;</a></h2>
-<p>你电脑里的文件夹是这样的（图 4-1）：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>D:\课程\
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── 讲义\
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│   ├── 第1章.md
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│   └── 第2章.md
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>└── 实验\
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    └── bench.py
+<h2 id="40-radixattention">4.0 先用“笔记目录树”类比理解 RadixAttention<a class="headerlink" href="#40-radixattention" title="Permanent link">&para;</a></h2>
+<p>RadixAttention 要解决的是前缀复用：把多个请求的 token 前缀组织成基数树，相同前缀共用同一段 KV，减少重复 prefill。想象考场里有一本共享的<strong>笔记目录</strong>，按题目的开头组织（图 4-1）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>请
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── 解释什么是
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│   ├── KV Cache
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│   └── PagedAttention
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>└── 比较
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    └── vLLM 与 SGLang
 </code></pre></div>
-<p><em>图 4-1　用文件夹路径类比基数树</em></p>
-<p><code>D:\课程\讲义\</code> 这段路径被两个文件共享；<code>D:\课程\实验\</code> 是另一条分支。RadixAttention 的树也是同样的结构：</p>
+<p><em>图 4-1　用笔记目录树类比基数树</em></p>
+<p>“请解释什么是”这段开头被两份笔记共享；“请比较”是另一条分支。RadixAttention 的树也是同样的结构：</p>
 <ul>
-<li>树的根 = 盘符/根目录；</li>
-<li>每条边 = 一段 token 序列（不是单个 token），像一级文件夹；</li>
-<li>节点 = 一段共享前缀的 KV；</li>
+<li>树的根 = 笔记目录的总入口；</li>
+<li>每条边 = 一段 token 序列（不是单个 token），像目录里的一级标题；</li>
+<li>节点 = 这段 token 序列在 KV 池中的索引（从根到节点的路径拼出完整前缀）；</li>
 <li>子节点 = 在这个前缀之后分叉的不同后缀；</li>
-<li>多个请求可以共享同一条路径上的 KV；</li>
-<li>请求结束后，把它走过的路径“登记”到树里，供后续请求复用。</li>
+<li>多份卷子可以共享同一条路径上的笔记；</li>
+<li>请求算过的前缀会“登记”到目录里：运行中先登记已算完的部分，结束后补全整条序列，供后续请求复用。</li>
 </ul>
 <table>
 <thead>
 <tr>
-<th>文件夹</th>
+<th>笔记目录</th>
 <th>RadixAttention</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>根目录</td>
+<td>总入口</td>
 <td>树的 root</td>
 </tr>
 <tr>
-<td>一级文件夹</td>
+<td>一级标题</td>
 <td>一段 token 前缀（如 system prompt）</td>
 </tr>
 <tr>
-<td>子文件夹</td>
+<td>子标题</td>
 <td>分叉后的后缀</td>
 </tr>
 <tr>
-<td>文件</td>
+<td>一条完整目录路径</td>
 <td>某个请求的完整 token 序列</td>
 </tr>
 <tr>
-<td>两个文件共享路径</td>
+<td>两条路径共享开头</td>
 <td>两个请求共享 KV</td>
 </tr>
 <tr>
-<td>删除空文件夹</td>
+<td>删除空目录</td>
 <td>驱逐没有引用的叶子节点</td>
 </tr>
 </tbody>
 </table>
-<p>这样，多轮对话、Agent 分支、RAG 共享文档，都可以看成“走同一段文件夹路径”。Radix Cache 会复用路径上的 KV；如果进一步开启缓存感知调度（如 LPM），调度器还会尽量让“路径相同”的请求一起走，减少重复 prefill。</p>
+<p>这样，多轮对话、Agent 分支、RAG 共享文档，都可以看成“走同一段笔记目录路径”。Radix Cache 会复用路径上的 KV；如果进一步开启缓存感知调度（如 LPM），调度器还会尽量让“路径相同”的请求一起走，减少重复 prefill。</p>
 <hr />
 <h2 id="41">4.1 定位与历史<a class="headerlink" href="#41" title="Permanent link">&para;</a></h2>
 <p>SGLang 由 LMSYS Org（与 Vicuna、Chatbot Arena 同一社区）发起，核心论文是 2023 年预印、2024 年发表在 NeurIPS 的 <em>SGLang: Efficient Execution of Structured Language Model Programs</em>。</p>
@@ -2397,7 +2397,7 @@
 <li><strong>last_access_time</strong> 支持 LRU：越久没被访问的叶子越先被驱逐。</li>
 </ul>
 <blockquote>
-<p><strong>引用计数的借书类比</strong>：树节点像图书馆的书，<code>lock_ref</code> 是“当前有多少人正在借”。只要还有人借（&gt;0），就不能把书下架；所有人都还了（=0），才允许清理。这样能保证正在生成的请求不会读到一个被释放的 KV 节点。</p>
+<p><strong>引用计数的共享笔记类比</strong>：树节点像一份共享笔记，<code>lock_ref</code> 是“当前有多少份卷子正在用它”。只要还有卷子在用（&gt;0），就不能把笔记收走；所有卷子都交卷了（=0），才允许清理。这样能保证正在生成的请求不会读到一个被释放的 KV 节点。</p>
 </blockquote>
 <h3 id="433-match_prefix">4.3.3 匹配（match_prefix）<a class="headerlink" href="#433-match_prefix" title="Permanent link">&para;</a></h3>
 <p>新请求到来时，调度器用它的 token 序列在树中做最长前缀匹配：</p>
@@ -2443,7 +2443,7 @@
 <a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>     children
 </code></pre></div>
 <p><em>图 4-3　match_prefix 命中节点内部时的分裂</em></p>
-<p>分裂只影响元数据，不复制 KV 数据：原节点的 <code>value</code> 按长度切开，前半段留在父节点，后半段给子节点。这样，任意 token 级前缀都能被精确匹配，而不像块级缓存那样受 16 token 对齐限制（前提是 <code>page_size=1</code>；把 page size 调大后，匹配粒度会变粗）。</p>
+<p>分裂只影响元数据，不复制 KV 数据：原节点的 <code>value</code> 按长度切开，前半段留在父节点，后半段给子节点。这样，任意 token 级前缀都能被精确匹配，而不像块级缓存那样必须按块大小对齐（示例 16 token，vLLM 0.34.0 默认 64；前提是 <code>page_size=1</code>，把 page size 调大后匹配粒度会变粗）。</p>
 <p><strong>手把手例子：一次“半路分叉”</strong></p>
 <p>假设树里已经有一条完整路径：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>root
@@ -2558,7 +2558,7 @@
 </table>
 <p>如果按 FCFS 先跑 B，再跑 A、C，那么 A 和 C 的高命中前缀可能在等待期间被其他请求驱逐；如果先跑 A 和 C，它们只需 prefill 500 和 100 个 token，整体吞吐更高。</p>
 <blockquote>
-<p><strong>快递分拣类比</strong>：快递站有很多包裹，如果按到达顺序随便送，可能同一小区要跑很多趟。LPM 相当于“先把同一小区的包裹集中起来一起送”，跑一趟覆盖更多件，效率高。但如果有几个小区一直有大量包裹，偏远小区的包裹可能一直排不上——这就是 LPM 的公平性问题。</p>
+<p><strong>排卷类比</strong>：考场门口堆着很多卷子，如果按到达顺序随便发，可能同一段开头要反复做很多遍笔记。LPM 相当于“先把开头相同的卷子集中起来一起发”，一次覆盖更多份，效率高。但如果有几类卷子一直大量到达，开头冷门的卷子可能一直排不上——这就是 LPM 的公平性问题。</p>
 </blockquote>
 <p><strong>最长前缀匹配（Longest Prefix Match, LPM）</strong> 的策略就是：优先调度“已匹配前缀最长”的请求，最大化 KV 复用、减少重复计算。</p>
 <h3 id="442-sglang">4.4.2 SGLang 的调度策略<a class="headerlink" href="#442-sglang" title="Permanent link">&para;</a></h3>
@@ -3029,7 +3029,7 @@ SGLang 现在主要指 SRT 运行时（serving 引擎）；前端语言是它的
 <li>优势在前缀密集、Agent/RAG、结构化输出、大规模 MoE；局限在覆盖广度、树开销与公平性。</li>
 </ul>
 <blockquote>
-<p><strong>用大白话再说一遍</strong>：SGLang 把 KV 组织成一棵“文件夹树”。相同前缀的请求走同一段路径，不用重新 prefill；谁要分叉，就在分叉点把文件夹拆开。若开启缓存感知调度，还会优先安排“路径更长、命中更多”的请求，像快递先送同一小区。结构化输出则是给模型一张“语法地图”，只允许走合法的路，能确定的路段直接快进。</p>
+<p><strong>用大白话再说一遍</strong>：SGLang 把 KV 组织成一棵“笔记目录树”。相同前缀的请求走同一段路径，不用重新 prefill；哪份卷子要分叉，就在分叉点把那段笔记拆开。若开启缓存感知调度，还会优先安排“路径更长、命中更多”的请求，像先处理开头相同的卷子。结构化输出则是给模型一张“答题卡模板”，只允许填合法的格子，能确定的部分直接快进。</p>
 <p><strong>延伸阅读</strong>：SGLang 论文（NeurIPS 2024）、LMSYS 的 RadixAttention 博客、SGLang 文档中的 <a href="https://docs.sglang.io/docs/advanced_features/hicache">HiCache</a> / PD Disaggregation 章节，以及 <code>radix_cache.py</code>、<code>scheduler.py</code> 的源码。</p>
 </blockquote>
 <hr />

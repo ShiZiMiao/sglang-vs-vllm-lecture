@@ -1697,25 +1697,25 @@
 <li>INT4/AWQ/GPTQ：每个数字约 0.5 字节，显存降到 1/4；</li>
 <li>KV Cache 也可以量化，长上下文收益更明显。</li>
 </ul>
-<p>类比：把“精确到小数点后 6 位”的账本，改成“保留 2 位小数”。大多数时候够用，但极端情况可能算错。量化是否降智、是否更快，取决于方法、校准数据和硬件 kernel，必须实测。</p>
+<p>类比：草稿上原本记 6 位小数，现在只记 2 位；大多数题够用，但极端题可能算错。量化是否降智、是否更快，取决于方法、校准数据和硬件 kernel，必须实测。</p>
 <h3 id="602-loralow-rank-adaptation">6.0.2 LoRA（Low-Rank Adaptation）<a class="headerlink" href="#602-loralow-rank-adaptation" title="Permanent link">&para;</a></h3>
 <p>LoRA 是给大模型加一个<strong>小补丁</strong>，只训练很少的参数，就能让同一个基座模型适配不同任务/租户。</p>
 <p>类比：同一本教材（基座模型），给不同班级发不同的“补充讲义”（LoRA adapter）。教材不用重印，讲义很薄，切换成本低。</p>
 <p>多租户平台常用“一个基座 + 多个 LoRA”，但要注意：不同 LoRA 的 KV 不能混用，前缀缓存必须把 LoRA ID 纳入哈希。</p>
 <h3 id="603-multimodal">6.0.3 多模态（Multimodal）<a class="headerlink" href="#603-multimodal" title="Permanent link">&para;</a></h3>
 <p>让模型同时理解文字、图片、音频、视频。图像通常先被切成 patch，经视觉编码器变成向量，再和文本 token 拼接。</p>
-<p>类比：把图片翻译成模型能读的“另一种 token”。多模态的瓶颈往往在视觉编码器，而不是语言模型本身。</p>
+<p>类比：题干里出现图表时，先把图切成小块、变成模型能读的“图块笔记”，再和文字题一起做。多模态的瓶颈往往在视觉编码器，而不是语言模型本身。</p>
 <h3 id="604-speculative-decoding">6.0.4 投机解码（Speculative Decoding）<a class="headerlink" href="#604-speculative-decoding" title="Permanent link">&para;</a></h3>
 <p>用小模型/草稿头先猜几个 token，再用大模型一次性验证：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>小模型：我猜接下来是 "快速排序"
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>大模型：前 3 个 token 对，第 4 个不对 → 接受 3 个，纠正 1 个
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>草稿模型：我猜接下来是 "快速排序"
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>核对模型：前 3 个 token 对，第 4 个不对 → 接受 3 个，纠正 1 个
 </code></pre></div>
-<p>类比：实习生先起草，老板批改。批改比从头写快，但如果实习生猜得太离谱，就白忙。收益取决于<strong>接受率</strong>。</p>
+<p>类比：让手快的学生先写草稿，老师再一次性核对。核对比从头写快，但如果草稿猜得太离谱，就白忙。收益取决于<strong>接受率</strong>。</p>
 <h3 id="605-pd-prefill-decode-disaggregation">6.0.5 PD 分离（Prefill-Decode Disaggregation）<a class="headerlink" href="#605-pd-prefill-decode-disaggregation" title="Permanent link">&para;</a></h3>
-<p>把 prefill（备菜）和 decode（炒菜）放到不同的 GPU 池：</p>
+<p>把 prefill（通读题干）和 decode（逐字作答）放到不同的 GPU 池：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>请求 → [Prefill 池] --KV 传输--&gt; [Decode 池] → 输出
 </code></pre></div>
-<p>类比：中央厨房统一备菜，门店只管炒菜。好处是两阶段可以独立扩缩容；代价是要用高速网络搬运“半成品”（KV），架构更复杂。</p>
+<p>类比：读题员先通读题干、做好草稿笔记，再把笔记交给答题员作答。好处是读题和作答可以独立扩缩容；代价是要用高速网络搬运“半成品”（KV），架构更复杂。</p>
 <hr />
 <h2 id="61">6.1 模型覆盖<a class="headerlink" href="#61" title="Permanent link">&para;</a></h2>
 <h3 id="611">6.1.1 稠密模型<a class="headerlink" href="#611" title="Permanent link">&para;</a></h3>
@@ -2362,7 +2362,7 @@ PD 分离适合两阶段资源需求差异大、需要独立扩缩容的场景�
 <li>版本迭代快，生产必须锁版本、做回归、保留降级方案。</li>
 </ul>
 <blockquote>
-<p><strong>用大白话再说一遍</strong>：vLLM 像一家大超市，东西全、什么牌子都有；SGLang 像一家精品店，热门商品（前缀复用、结构化输出、DeepSeek）做得深。先确认“你要的东西有没有”，再比较“谁做得更好”。</p>
+<p><strong>用大白话再说一遍</strong>：选型不是选“更好”，而是选“更匹配”：先确认你要的能力对方有没有，再看在你的 workload、硬件和版本上谁更合适。社区大不等于适合你，功能多也不等于跑得快。</p>
 </blockquote>
 <hr />
 <h2 id="_1">思考题<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
