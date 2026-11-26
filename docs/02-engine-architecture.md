@@ -2,49 +2,49 @@
 
 > **本章目标**：在进入 vLLM 与 SGLang 的细节之前，先建立一套“引擎无关”的通用架构。之后你会发现，两个引擎的差异主要是同一组模块里的数据结构与策略不同。
 >
-> **先修知识**：[第 0 章](00-prerequisites.md) 的 token/GPU 直觉、[第 1 章](01-foundations.md) 的 prefill/decode 与 KV Cache。忘了也没关系，本章会用“餐厅”类比重新串一遍。
+> **先修知识**：[第 0 章](00-prerequisites.md) 的 token/GPU 直觉、[第 1 章](01-foundations.md) 的 prefill/decode 与 KV Cache。忘了也没关系，本章会用“考场/教务系统”类比重新串一遍。
 >
-> **一句话概括**：推理引擎 = 一个专门服务 LLM 请求的“餐厅”：前台接单、调度员排桌、座位管理员管 KV、厨房做前向、传菜员流式返回。
+> **一句话概括**：推理引擎 = 一个专门服务 LLM 请求的“考场”：接卷窗口收下卷子、监考排卷、草稿纸管理员管 KV、考生大脑做前向、誊写员流式交卷。
 >
-> **给零基础同学**：本章会出现很多组件名，不要试图一次记住。先记住“一条请求从进门到出门经过哪些人”，再看每个人具体做什么。
+> **给零基础同学**：本章会出现很多组件名，不要试图一次记住。先记住“一份卷子从进考场到交卷经过哪些人”，再看每个人具体做什么。
 
 ---
 
-## 2.0 先用餐厅类比理解整个引擎
+## 2.0 先用考场/教务系统类比理解整个引擎
 
-把推理引擎想成一家餐厅（图 2-1）：
+推理引擎通常由七类组件组成：API/Frontend、Processor/Tokenizer、Scheduler、KV Cache Manager、Executor/Worker、Sampler、Output Processor。把推理引擎想成一个考场/教务系统（图 2-1）：
 
 ```text
-客人（用户请求）
+卷子（用户请求）
    │
    ▼
-服务员（API/Frontend）── 接单、验券、把菜单翻译成厨房编号
+接卷窗口（API/Frontend）── 收下卷子、验身份、交给监考
    │
    ▼
-调度员（Scheduler）──── 决定先做哪桌、每桌做多少、什么时候加桌
+监考/排卷（Scheduler）──── 决定先答哪份、每份答多少、什么时候加卷
    │
-   ├──▶ 座位管理员（KV Cache Manager）── 记录谁坐哪、哪些座位可拼桌
-   │
-   ▼
-厨房（Executor/Worker/ModelRunner）── 真正炒菜（GPU 前向）
+   ├──▶ 草稿纸管理员（KV Cache Manager）── 记录每份卷子的笔记放哪、哪些笔记可共享
    │
    ▼
-传菜员（Output Processor/Detokenizer）── 把菜端出去、报菜名（流式输出）
+考生大脑（Executor/Worker/ModelRunner）── 真正作答（GPU 前向）
+   │
+   ▼
+誊写/收卷员（Output Processor/Detokenizer）── 把答案整理好、流式交卷
 ```
 
-*图 2-1　推理引擎的餐厅类比*
+*图 2-1　推理引擎的考场类比*
 
-*表 2-1　餐厅类比与引擎组件*
+*表 2-1　考场类比与引擎组件*
 
-| 餐厅角色 | 引擎组件 | 一句话职责 |
+| 考场角色/环节 | 引擎组件 | 一句话职责 |
 |---|---|---|
-| 服务员 | API / Frontend | 接请求、鉴权、解析参数、流式返回 |
-| 菜单翻译 | Processor / Tokenizer | 文本 → token，套 chat template |
-| 调度员 | Scheduler | 每一步决定谁上、谁下、做多少 |
-| 座位管理员 | KV Cache Manager | 分配/共享/回收 KV 座位 |
-| 厨房 | Executor / Worker / ModelRunner | 在 GPU 上执行模型前向 |
-| 调味师 | Sampler / Logits Processor | 从概率里选下一个 token |
-| 传菜员 | Output Processor / Detokenizer | 判断停止、还原文本、流式输出 |
+| 接卷窗口 | API / Frontend | 收下卷子、验身份、解析参数、管理连接 |
+| 题目录入 | Processor / Tokenizer | 文本 → token，套答题模板 |
+| 监考 / 排卷 | Scheduler | 每一步决定哪份答、哪份停、答多少 |
+| 草稿纸管理员 | KV Cache Manager | 分配/共享/回收草稿纸 |
+| 考生大脑 | Executor / Worker / ModelRunner | 在 GPU 上执行模型前向 |
+| 落笔 | Sampler / Logits Processor | 从概率里选下一个 token |
+| 誊写 / 收卷员 | Output Processor / Detokenizer | 判断停止、还原文本、流式交卷 |
 
 这张表就是本章的“地图”。下面逐个展开。
 
@@ -679,7 +679,7 @@ PD 分离适合两阶段资源需求差异大、需要独立扩缩容的场景�
 - 分布式：TP/PP/DP/EP/SP/CP/PD，各有适用场景与代价。
 - vLLM 与 SGLang 共享 continuous batching 与 paged/varlen attention 的血脉，主要差异在 **KV 数据结构、调度策略与前端可编程性**。
 
-> **用大白话再说一遍**：引擎像一家餐厅。服务员接单，调度员决定先做哪桌、每桌做多少，座位管理员记录谁坐哪、能不能拼桌，厨房做菜，传菜员把菜端出去。PagedAttention/RadixAttention 是两种“座位管理法”，continuous batching 是“谁吃完谁走、空位立刻补人”的排桌方式。
+> **用大白话再说一遍**：引擎像一套考场/教务系统。接卷窗口收下卷子，监考决定先答哪份、每份答多少，草稿纸管理员记录每份卷子的笔记放哪、哪些笔记能共享，考生大脑作答，誊写员把答案交出去。PagedAttention 管“草稿纸怎么分”，RadixAttention 在分好的草稿纸池上建“前缀索引”，continuous batching 是“哪份答完哪份交卷、空出的桌面立刻补下一份”的排卷方式。
 
 ---
 
